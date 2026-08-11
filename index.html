@@ -157,7 +157,7 @@ var QPEN=0.2;
 /* ===== イベント ===== */
 var EVS=[
  {id:"at",l:"AT当選",s:"強カワラッシュ",c:"#ff4081",cat:"at"},
- {id:"miko",l:"巫女pt 0pt到達",s:"最重要",c:"#42a5f5",cat:"miko"},
+ {id:"miko",l:"巫女pt 0pt到達",s:"乙女アタック抽選",c:"#42a5f5",cat:"miko"},
  {id:"kyokawa",l:"強カワチャンス",c:"#66bb6a",cat:"kyokawa"},
  {id:"senbo",l:"戦国乙女BONUS",c:"#ffd54f",cat:"senbo"},
  {id:"ryoran",l:"繚乱の刻",s:"前兆",c:"#ffab40",cat:"ryoran"},
@@ -171,6 +171,7 @@ var EVMAP={};EVS.forEach(function(e){EVMAP[e.id]=e});
 var AT_KIK=[{id:"cyc",l:"周期到達"},{id:"otome",l:"乙女アタック"},{id:"kyokawa",l:"強カワチャンス"},
  {id:"senbo",l:"戦国乙女ボーナス"},{id:"tenjou",l:"天井(G数/周期)"},{id:"modoshi",l:"引き戻し(1周期目)"},{id:"fumei",l:"不明"}];
 var MIKO_RES=[{id:"hit",l:"乙女アタック当選"},{id:"miss",l:"非当選"}];
+var CZ_OUT=[{id:"at",l:"→ AT当選"},{id:"lose",l:"→ 失敗"}];
 var MIKO_MODE=[{id:"normal",l:"通常(カンスケ以外)",s:"判別に使用"},{id:"kansuke",l:"カンスケ滞在",s:"判別から除外"},
  {id:"lock",l:"リールロック2段階契機",s:"判別から除外"}];
 var KYO_RES=[{id:"at",l:"AT当選"},{id:"none",l:"非当選"}];
@@ -183,14 +184,24 @@ var CYCS=[1,2,3,4,5,6];
 
 /* 演出/示唆メモ（設定示唆ではない＝推測に非加算） */
 var ENSHUTSU=[
- {id:"cycle",l:"周期カウンタ/前兆",opts:[
-   {id:"ryoran_en",l:"繚乱の刻・焔舞",s:"通常前兆"},
-   {id:"ryoran_shi",l:"繚乱の刻・紫炎",s:"AT期待度61.4%(設1)・3周期目以降は突入率に設定差"},
-   {id:"light",l:"周期カウンタの光エフェクト",s:"周期テーブル示唆"}]},
- {id:"hideyoshi",l:"ヒデヨシのセリフ",opts:[
-   {id:"def",l:"通常セリフ",s:"デフォルト"},
-   {id:"chance",l:"チャンスセリフ",s:"周期短縮/高テーブル示唆"}]},
- {id:"eye",l:"アイキャッチ",opts:[
+ {id:"haruna",l:"榛名の色（前兆中）",opts:[
+   {id:"white",l:"白",s:"デフォルト"},
+   {id:"red",l:"赤",s:"本前兆の期待大"},
+   {id:"purple",l:"紫",s:"繚乱の刻・紫炎 濃厚"}]},
+ {id:"stage",l:"通常時のステージ",opts:[
+   {id:"normal",l:"通常ステージ",s:"デフォルト"},
+   {id:"mouri",l:"毛利邸(夜)",s:"50G以内の周期到達濃厚"},
+   {id:"tower",l:"封印の塔",s:"50G以内の周期到達濃厚＋AT本前兆期待度 大幅アップ"}]},
+ {id:"hideyoshi",l:"ヒデヨシのセリフ（周期テーブル示唆）",opts:[
+   {id:"wai",l:"わ～い（黄）",s:"デフォルト?"},
+   {id:"yaho",l:"やっほ〜（黄）",s:"デフォルト?"},
+   {id:"waruku",l:"悪くはないかもね（黄）",s:"チャンス?"},
+   {id:"124",l:"壱、弐、四の刻が好機…!?（青）",s:"1･2･4周期がチャンス?"},
+   {id:"135",l:"壱、参、伍の刻が好機…!?（青）",s:"1･3･5周期がチャンス?"},
+   {id:"kehai",l:"良い気配が近づいてるよ！（緑）",s:"規定周期到達のチャンス?"},
+   {id:"kicchou",l:"吉兆だぁ！（赤）",s:"規定周期到達の大チャンス? 続行検討"}]},
+ {id:"gumi",l:"ぐみ出現",opts:[{id:"out",l:"ぐみ出現",s:"前兆開始の合図"}]},
+ {id:"eye",l:"アイキャッチ（ステージチェンジ）",opts:[
    {id:"def",l:"デフォルト"},{id:"chance",l:"チャンスパターン",s:"周期テーブル示唆"}]},
  {id:"strap",l:"乙女ストラップモード",opts:[
    {id:"kansuke",l:"カンスケ",s:"乙女アタック当選率が別抽選→判別から除外"},
@@ -220,6 +231,18 @@ var ATEND_SCR=[
  {id:"red",l:"乙女集合(赤背景)",s:"天国濃厚",tbl:"天国濃厚"},
  {id:"gold",l:"乙女集合(金背景)",s:"天国濃厚＋設定2以上濃厚",tbl:"天国濃厚"}];
 var STRAP=[{id:"normal",l:"通常"},{id:"kansuke",l:"カンスケ",s:"乙女アタック除外"},{id:"yoshiteru",l:"ヨシテル",s:"上位"}];
+/* 周期テーブル：周期天井を管理（通常A=最大6 / 通常B=最大3 / 天国=1） */
+var TBLS=[{id:"",l:"不明",ceil:6,zone:"—"},
+ {id:"a",l:"通常A",ceil:6,zone:"2･4周期◯ / 5周期◎ / 6周期天井"},
+ {id:"b",l:"通常B",ceil:3,zone:"2周期◎ / 3周期天井"},
+ {id:"heaven",l:"天国",ceil:1,zone:"1周期で当選"}];
+/* 周期モード：周期到達までの規定G数を管理（★が最有力ゾーン） */
+var MODES=[{id:"",l:"不明",max:500,zone:"—"},
+ {id:"A",l:"モードA",max:500,zone:"200G◎ 400G◎ 500G★（400G超で次回B以上濃厚）"},
+ {id:"B",l:"モードB",max:300,zone:"200G◯ 300G★（次回B以上濃厚）"},
+ {id:"C",l:"モードC",max:200,zone:"100G◯ 200G★（次回C以上濃厚）"},
+ {id:"chance",l:"チャンス",max:50,zone:"50Gで周期到達"},
+ {id:"modoshi",l:"引き戻し(1周期目)",max:200,zone:"50G◎ 200G★（次回B以上へ移行しやすい）"}];
 
 /* ===== 設定示唆カウンター ===== */
 var CNTS=[
@@ -261,8 +284,8 @@ var SIGLBL={};CNTS.forEach(function(s){s.items.forEach(function(i){SIGLBL[i.k]=i
 
 /* ===== 状態 ===== */
 var LOG=[],CC={},COL={},TAB="rec",HAMARI="",USE_Q=true;
-var ST={cyc:1,cycG:"",miko:"",strap:"normal",tbl:"",shop:"",dai:"",toshi:"",kaishu:"",memo:"",reset:""};
-var curEv=null,curG="",curKik=null,curCyc=null,curRes=null,curMode=null,curType=null,curMai="",curNote="",curCat=null,curOpt=null;
+var ST={cyc:1,cycG:"",miko:"",strap:"normal",tbl:"",tblId:"",mode:"",shop:"",dai:"",toshi:"",kaishu:"",memo:"",reset:"0"};
+var curEv=null,curG="",curKik=null,curCyc=null,curRes=null,curMode=null,curType=null,curMai="",curNote="",curCat=null,curOpt=null,curCzout=null;
 var rstP=false,rstT=null,SK="otome5_v1";
 
 function initC(){ALLCK.forEach(function(k){CC[k]=0});CNTS.forEach(function(s){COL[s.id]=(s.id==="ref"||s.id==="nagi")})}
@@ -413,13 +436,16 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
    h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:6px;line-height:1.5">設定1の周期別AT期待度は1・2周期目 約40%、3〜5周期目 30%以上、6周期目で天井。高設定ほど早い周期で当選しやすいとされるため、何周期目かは必ず記録を。</div></div>';}
   if(ev.cat==="miko"){
    h+=detRow("状況（判別に使えるかの判定）",MIKO_MODE,"mode",curMode);
-   h+=detRow("結果",MIKO_RES,"res",curRes);
-   h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5">本機で<b style="color:#ff80ab">最も実用的な判別要素</b>。設1:20.3%→設6:25.7%。カンスケ滞在時とリールロック2段階契機は抽選が別なので「除外」を選べばカウントされません。当選しなかった回も必ず記録してください。</div>';}
+   h+=detRow("乙女アタック抽選の結果",MIKO_RES,"res",curRes);
+   if(curRes==="hit")h+=detRow("乙女アタック消化後",CZ_OUT,"czout",curCzout);
+   h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5">巫女ポイントが0ptに到達した時のCZ抽選で、本機で<b style="color:#ff80ab">最も実用的な判別要素</b>（設1:20.3%→設6:25.7%）。周期の進行とは別系統なので、ここでは周期は動きません。カンスケ滞在時とリールロック2段階契機は抽選が別なので「除外」を選べばカウントされません。当選しなかった回も必ず記録してください。</div>';}
   if(ev.cat==="kyokawa"){h+=detRow("結果",KYO_RES,"res",curRes);
    h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5">出現率に設定差ありですが<b>設定1の1/36.8しか判明していない</b>ため、推測には加算せず実測値のみ表示します（示唆タブの参考カウンター）。</div>';}
   if(ev.cat==="senbo"){h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin:8px 0;line-height:1.6;padding:9px 10px;border-radius:11px;background:rgba(255,213,79,.06);border:1px solid rgba(255,213,79,.18)">戦国乙女ボーナスは<b style="color:#ffd54f">本機最大級の設定差（約4倍）</b>。設1で1/21206.7、設6で1/5502.7。引けた時点で強カワラッシュ濃厚です。記録すると示唆タブのカウンターにも自動加算されます。</div>';}
   if(ev.cat==="ryoran"){h+=detRow("種別",RYO_T,"type",curType)+detRow("結果",RYO_RES,"res",curRes);
-   h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5">前兆の記録。<b style="color:#ffab40">紫炎はAT期待度61.4%(設定1)</b>で、3周期目以降の突入率に設定差があるとされます。ただし他設定の数値が未判明のため推測には加算せず、突入率と勝率の実測を示唆タブに表示します。紫炎からハズレた場合は周期テーブルの手掛かりになります。</div>';}
+   var nx=nextCyc(curRes);
+   if(nx)h+='<div style="padding:8px 10px;border-radius:10px;background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.3);font-size:11px;color:#ffab40;font-weight:700;margin:6px 0">'+nx+'</div>';
+   h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5"><b style="color:#ffab40">周期はここで進みます</b>（巫女ポイントとは別系統）。紫炎はAT期待度61.4%(設定1)で、3周期目以降の突入率に設定差があるとされます。ただし他設定の数値が未判明のため推測には加算せず、突入率と勝率の実測を示唆タブに表示します。紫炎からハズレた場合は周期テーブルの手掛かりになります。</div>';}
   if(ev.cat==="atcz"){h+=detRow("種別",ATCZ_T,"type",curType)+detRow("結果",ATCZ_RES,"res",curRes);
    h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:-4px;line-height:1.5">いずれも設定1の数値のみ判明のため、推測には加算せず実測の勝率だけを表示します。</div>';}
   if(ev.cat==="atend"){
@@ -443,25 +469,46 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
  if(LOG.length>0){h+='<div class="rec-t">直近の記録</div>'+buildTable(Math.max(0,LOG.length-6),LOG.length,true);}
  h+='</div>';ct.innerHTML=h}
 
+function nextCyc(res){var c=parseInt(ST.cyc)||1;
+ if(res==="lose")return "記録すると "+c+"周期目 → "+Math.min(6,c+1)+"周期目 へ進みます";
+ if(res==="at")return "記録すると AT当選として周期が1にリセットされます";
+ return ""}
+
+function cycTbl(){var t=TBLS.filter(function(x){return x.id===ST.tblId})[0];return t||TBLS[0]}
+function cycMode(){var m=MODES.filter(function(x){return x.id===ST.mode})[0];return m||MODES[0]}
+function ceilCyc(){var c=cycTbl().ceil;if(ST.reset==="1")c=Math.min(c,4);return c}
+
 function yamedoki(){
- var c=parseInt(ST.cyc)||1,g=parseInt(ST.cycG)||0,out=[];
- if(c<=1)out.push({t:"続行推奨",s:"AT後1周期目は引き戻しモード。最大200G消化で周期到達かつAT期待度約40%。ここまでは必ずフォロー。",c:"#66bb6a"});
- else if(c>=5)out.push({t:"続行推奨",s:c+"周期目。6周期目が周期天井なので残り"+(6-c)+"周期。ここまで来たら抜けるまで回すのが基本。",c:"#66bb6a"});
- else out.push({t:"ヤメ可",s:c+"周期目・周期内"+g+"G。1周期目を消化済みで高テーブル/天国の示唆が無ければヤメて問題なし。",c:"#8899aa"});
- if(ST.tbl)out.push({t:"テーブル示唆あり",s:ST.tbl+" → 示唆が生きているうちは続行を検討。",c:"#ffab40"});
+ var c=parseInt(ST.cyc)||1,g=parseInt(ST.cycG)||0,out=[],T=cycTbl(),M=cycMode(),ce=ceilCyc();
+ out.push({t:T.l+" / 周期天井 "+ce+"周期"+(ST.reset==="1"?"（設定変更で最大4に短縮）":""),
+   s:"ゾーン: "+T.zone,c:"#ffab40"});
+ if(ST.mode)out.push({t:M.l+" / 最大"+M.max+"G で周期到達",s:"ゾーン: "+M.zone,c:"#64b5f6"});
+ if(c===1)out.push({t:"続行推奨",s:"1周期目は引き戻しモードなら最大200G消化で周期到達、AT期待度は設定1でも約40%。AT終了後は1周期目まで必ずフォロー。",c:"#66bb6a"});
+ else if(c>=ce)out.push({t:"続行必須",s:c+"周期目。"+ce+"周期目が周期天井なのでAT当選が確定します。",c:"#ef5350"});
+ else if(ce-c<=1)out.push({t:"続行推奨",s:c+"周期目。天井まで残り"+(ce-c)+"周期。抜けるまで回すのが基本。",c:"#66bb6a"});
+ else if(ST.tblId==="b"||ST.tblId==="heaven")out.push({t:"続行推奨",s:T.l+"滞在。天井"+ce+"周期までが近いので続行。",c:"#66bb6a"});
+ else out.push({t:"ヤメ可",s:c+"周期目・周期内"+g+"G。1周期目を消化済みで高テーブル/天国の示唆が無ければヤメて問題なし。通常Bの天井3周期まで狙うのは投資リスクが大きい。",c:"#8899aa"});
+ if(ST.tbl)out.push({t:"テーブル示唆",s:ST.tbl+" → 天国の可能性を考慮して1周期目到達まではフォロー推奨。",c:"#ffab40"});
  if(ST.strap==="yoshiteru")out.push({t:"ストラップ ヨシテル",s:"上位モード滞在。続行推奨。",c:"#ffab40"});
  if(ST.strap==="kansuke")out.push({t:"ストラップ カンスケ",s:"乙女アタック当選率が別抽選。この間の0pt到達は判別から除外してください。",c:"#42a5f5"});
  return out}
 
 function stPanel(){var h='<div style="margin:0 0 10px;padding:10px 11px;border-radius:12px;background:rgba(255,171,64,.05);border:1px solid rgba(255,171,64,.16)">';
- h+='<div style="font-size:10px;color:#ffab40;font-weight:700;margin-bottom:6px">現在の状態（メモ用・推測には非加算）</div>';
+ h+='<div style="font-size:10px;color:#ffab40;font-weight:700;margin-bottom:6px">現在の状態（メモ用・推測には非加算）</div><div style="font-size:9px;color:rgba(255,255,255,.32);margin-bottom:6px;line-height:1.5">周期は「繚乱の刻」を記録すると自動で進みます。巫女ポイントは別系統です。ズレたらボタンで直接修正できます。</div>';
  h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期</div><div class="grid g6" style="margin-bottom:7px">';
  for(var c=1;c<=6;c++)h+='<button type="button" class="ptbtn'+((parseInt(ST.cyc)||1)===c?' s':'')+'" data-stcyc="'+c+'">'+c+'</button>';
  h+='</div>';
  h+='<div style="display:flex;gap:6px;margin-bottom:7px">';
  h+='<div style="flex:1"><div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期内G数</div><input type="number" inputmode="numeric" class="dt-f" id="iCycG" value="'+esc(ST.cycG)+'" placeholder="0"></div>';
- h+='<div style="flex:1"><div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">巫女ポイント</div><input type="number" inputmode="numeric" class="dt-f" id="iMiko" value="'+esc(ST.miko)+'" placeholder="残pt"></div>';
+ h+='<div style="flex:1"><div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">巫女pt(999→0)</div><input type="number" inputmode="numeric" class="dt-f" id="iMiko" value="'+esc(ST.miko)+'" placeholder="残pt"></div>';
  h+='</div>';
+ h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期テーブル（推定）</div><div class="dt-r" style="margin-bottom:7px">';
+ TBLS.forEach(function(x){h+='<button type="button" class="dt-b'+(ST.tblId===x.id?' s':'')+'" data-tbl="'+x.id+'">'+x.l+'<small style="display:block;font-size:8px;opacity:.55">天井'+x.ceil+'周期</small></button>'});
+ h+='</div>';
+ h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期モード（推定）</div><div class="dt-r" style="margin-bottom:7px">';
+ MODES.forEach(function(x){h+='<button type="button" class="dt-b'+(ST.mode===x.id?' s':'')+'" data-mode2="'+x.id+'">'+x.l+'<small style="display:block;font-size:8px;opacity:.55">最大'+x.max+'G</small></button>'});
+ h+='</div>';
+ h+='<div class="dt-r" style="margin-bottom:7px"><button type="button" class="dt-b'+(ST.reset==="1"?' s':'')+'" data-reset="1">設定変更後（周期天井 最大4に短縮）</button></div>';
  h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">乙女ストラップモード</div><div class="dt-r" style="margin-bottom:7px">';
  STRAP.forEach(function(m){h+='<button type="button" class="dt-b'+(ST.strap===m.id?' s':'')+'" data-strap="'+m.id+'">'+m.l+(m.s?'<small style="display:block;font-size:8px;opacity:.55">'+m.s+'</small>':'')+'</button>'});
  h+='</div>';
@@ -493,7 +540,7 @@ function rMemo(){var ct=document.getElementById("ct"),h='<div class="rec">';
 
 function canAdd(){if(!curEv)return false;var ev=EVMAP[curEv];
  if(ev.cat==="at")return!!(curKik&&curCyc);
- if(ev.cat==="miko")return!!(curMode&&curRes);
+ if(ev.cat==="miko")return!!(curMode&&curRes&&(curRes!=="hit"||curCzout));
  if(ev.cat==="kyokawa")return!!curRes;
  if(ev.cat==="ryoran")return!!(curType&&curRes);
  if(ev.cat==="atcz")return!!(curType&&curRes);
@@ -506,6 +553,7 @@ function buildNote(e){var b=[],f;
  if(e.mode){f=MIKO_MODE.filter(function(x){return x.id===e.mode})[0];if(f)b.push(f.l)}
  if(e.type){f=ATCZ_T.concat(RYO_T).filter(function(x){return x.id===e.type})[0];if(f)b.push(f.l)}
  if(e.scr){f=ATEND_SCR.filter(function(x){return x.id===e.scr})[0];if(f)b.push("終了画面:"+f.l+"("+f.s+")")}
+ if(e.czout){f=CZ_OUT.filter(function(x){return x.id===e.czout})[0];if(f)b.push(f.l)}
  if(e.res){f=MIKO_RES.concat(KYO_RES,ATCZ_RES,RYO_RES).filter(function(x){return x.id===e.res})[0];if(f)b.push(f.l)}
  if(e.encat){var g=ENSHUTSU.filter(function(x){return x.id===e.encat})[0];
   if(g){var o=g.opts.filter(function(x){return x.id===e.enopt})[0];b.push(g.l+"："+(o?o.l:e.enopt)+(o&&o.s?"("+o.s+")":""))}}
@@ -593,8 +641,23 @@ var INFO=[
    ["剣聖チャンス成功率","AT初当り時 約51% / AT終了時 約70%（設定1）"],
    ["カシンバトル / オウガイバトル","約50% / 約55%（設定1）"]],
   note:"いずれも設定差はあるものの設定1の数値しか判明していません。本ツールでは推測計算に加算せず、実測値と設定1基準の比較表示のみ行います（示唆タブの参考カウンター）。設定1を明確に上回る挙動が続けば高設定の傍証にはなります。"},
+ {id:"i_table",t:"🔄 周期テーブル・周期モード",rows:[
+   ["周期到達条件","液晶ゲーム数を最大500G＋α消化"],
+   ["通常A","最大6周期。2･4周期◯ / 5周期◎ / 6周期天井"],
+   ["通常B","最大3周期。2周期◎ / 3周期天井"],
+   ["天国","1周期で当選",6],
+   ["設定変更時","周期天井が最大4周期に短縮"],
+   ["モードA","最大500G。200G◎ 400G◎ 500G★（400G超で次回B以上濃厚）"],
+   ["モードB","最大300G。200G◯ 300G★（次回B以上濃厚）"],
+   ["モードC","最大200G。100G◯ 200G★（次回C以上濃厚）"],
+   ["チャンス","50Gで周期到達"],
+   ["引き戻し(1周期目)","最大200G。50G◎ 200G★（次回B以上へ移行しやすい）"],
+   ["1･2周期目のAT期待度","約40%（設定1）"],
+   ["3〜5周期目","30%以上（設定1）"],
+   ["紫炎の移行率","1･2周期目は高。3周期目以降は設定差あり"]],
+  note:"周期天井はテーブル、周期到達までのG数はモードが管理します。強カワチャンスは液晶ゲーム数の加算ゾーンなので、大量加算できれば早い周期到達に期待できます。AT終了画面で通常B以上の示唆が出ても、通常Bの天井3周期まで狙うのは投資リスクが大きいため、天国の可能性を考慮して1周期目到達までのフォローが推奨されています。"},
  {id:"i_tenjou",t:"🎯 天井・リセット・やめどき",rows:[
-   ["天井","ゲーム数天井と周期天井（最大6周期）のいずれか早い方"],
+   ["周期天井","通常A=最大6周期 / 通常B=最大3周期 / 天国=1周期"],
    ["ゲーム数天井の注意","実ゲーム数が対象。強カワチャンスによる加算分は対象外"],
    ["設定変更時","650G＋αに短縮／周期天井は最大4周期に短縮"],
    ["AT終了後","1周期目は引き戻しモード。最大200G消化で周期到達＋AT期待度約40%"],
@@ -660,24 +723,31 @@ function rExp(){var ct=document.getElementById("ct"),E=estimate(),s=stats(),tG=t
 /* ===== アクション ===== */
 function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
  function bump(k){if(k in CC){CC[k]++;e.ck.push(k)}}
- if(ev.cat==="at"){e.kik=curKik;e.cyc=curCyc;e.g=curG||"0";HAMARI="";}
- if(ev.cat==="miko"){e.mode=curMode;e.res=curRes;
-  if(curMode==="normal"){bump("mikoT");if(curRes==="hit")bump("mikoH");}}
+ if(ev.cat==="at"){e.kik=curKik;e.cyc=curCyc;e.g=curG||"0";HAMARI="";
+  e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
+  ST.cyc=1;ST.cycG="";ST.miko="";}
+ if(ev.cat==="miko"){e.mode=curMode;e.res=curRes;if(curCzout)e.czout=curCzout;
+  if(curMode==="normal"){bump("mikoT");if(curRes==="hit")bump("mikoH");}
+  e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
+  ST.miko="";}   // 巫女ptは0pt到達で再セット。周期には触れない（周期が進むのは繚乱の刻）
  if(ev.cat==="kyokawa"){e.res=curRes;bump("kyoN");}
  if(ev.cat==="senbo"){bump("senboN");}
  if(ev.cat==="atcz"){e.type=curType;e.res=curRes;
   if(curType==="honnoji"){bump("honT");if(curRes==="win")bump("honW");}
   if(curType==="kessen"){bump("kesT");if(curRes==="win")bump("kesW");}}
  if(ev.cat==="ryoran"){e.type=curType;e.res=curRes;
-  bump(curType==="shien"?"shiT":"enbT");if(curRes==="at")bump(curType==="shien"?"shiW":"enbW");}
+  bump(curType==="shien"?"shiT":"enbT");if(curRes==="at")bump(curType==="shien"?"shiW":"enbW");
+  e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
+  if(curRes==="at")ST.cyc=1;else ST.cyc=Math.min(ceilCyc(),(parseInt(ST.cyc)||1)+1);
+  ST.cycG="";}   // 周期が進むのは繚乱の刻
  if(ev.cat==="atend"){if(curMai)e.mai=curMai;
   if(curOpt){e.scr=curOpt;var so=ATEND_SCR.filter(function(x){return x.id===curOpt})[0];
-   e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG};   // 削除時に巻き戻すため直前の状態を保存
+   e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};   // 削除時に巻き戻すため直前の状態を保存
    ST.tbl=(so&&so.tbl)?so.tbl:"";ST.cyc=1;ST.cycG="";}}
  if(ev.cat==="enshutsu"){e.encat=curCat;e.enopt=curOpt;}
  if(curNote)e.note=curNote;
  LOG.push(e);
- curEv=null;curG="";curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curNote="";curCat=null;curOpt=null;
+ curEv=null;curG="";curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curNote="";curCat=null;curOpt=null;curCzout=null;
  save();render()}
 
 function doRst(){if(!rstP){rstP=true;if(rstT)clearTimeout(rstT);rstT=setTimeout(function(){rstP=false;render()},3000);render();return}
@@ -687,22 +757,26 @@ document.getElementById("W").addEventListener("click",function(ev){var el=ev.tar
  for(var i=0;i<6&&el&&el!==this;i++){if(el.dataset){
   if(el.dataset.tab){TAB=el.dataset.tab;render();return}
   if(el.dataset.ev){curEv=(curEv===el.dataset.ev?null:el.dataset.ev);
-   curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curCat=null;curOpt=null;
+   curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curCat=null;curOpt=null;curCzout=null;
    curG=(curEv==="at"?(HAMARI||""):"");render();return}
   if(el.dataset.kik!==undefined){curKik=(curKik===el.dataset.kik?null:el.dataset.kik);render();return}
   if(el.dataset.cyc!==undefined){curCyc=(curCyc===+el.dataset.cyc?null:+el.dataset.cyc);render();return}
   if(el.dataset.mode!==undefined){curMode=(curMode===el.dataset.mode?null:el.dataset.mode);render();return}
   if(el.dataset.type!==undefined){curType=(curType===el.dataset.type?null:el.dataset.type);render();return}
-  if(el.dataset.res!==undefined){curRes=(curRes===el.dataset.res?null:el.dataset.res);render();return}
+  if(el.dataset.res!==undefined){curRes=(curRes===el.dataset.res?null:el.dataset.res);curCzout=null;render();return}
+  if(el.dataset.czout!==undefined){curCzout=(curCzout===el.dataset.czout?null:el.dataset.czout);render();return}
   if(el.dataset.encat!==undefined){curCat=(curCat===el.dataset.encat?null:el.dataset.encat);curOpt=null;render();return}
   if(el.dataset.enopt!==undefined){curOpt=(curOpt===el.dataset.enopt?null:el.dataset.enopt);render();return}
   if(el.dataset.a==="add"){addEntry();return}
   if(el.dataset.del!==undefined){var rm=LOG.splice(parseInt(el.dataset.del),1)[0];
    if(rm&&rm.ck)rm.ck.forEach(function(k){if(CC[k]>0)CC[k]--});
-   if(rm&&rm.prev){ST.tbl=rm.prev.tbl;ST.cyc=rm.prev.cyc;ST.cycG=rm.prev.cycG;}
+   if(rm&&rm.prev){ST.tbl=rm.prev.tbl;ST.cyc=rm.prev.cyc;ST.cycG=rm.prev.cycG;if("miko" in rm.prev)ST.miko=rm.prev.miko;}
    save();render();return}
   if(el.dataset.stcyc!==undefined){ST.cyc=+el.dataset.stcyc;save();render();return}
   if(el.dataset.strap!==undefined){ST.strap=el.dataset.strap;save();render();return}
+  if(el.dataset.tbl!==undefined){ST.tblId=el.dataset.tbl;save();render();return}
+  if(el.dataset.mode2!==undefined){ST.mode=el.dataset.mode2;save();render();return}
+  if(el.dataset.reset!==undefined){ST.reset=(ST.reset==="1"?"0":"1");save();render();return}
   if(el.dataset.clrtbl!==undefined){ST.tbl="";save();render();return}
   if(el.dataset.tgl){USE_Q=!USE_Q;save();render();return}
   if(el.dataset.tog){COL[el.dataset.tog]=!COL[el.dataset.tog];render();return}
