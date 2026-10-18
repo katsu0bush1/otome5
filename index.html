@@ -153,11 +153,16 @@ var REF1={kyokawa:36.8,honnoji:114.8,honWin:.50,kessen:.55,shutsujin:183.6,
 var CYC1=[.40,.40,.30,.30,.30,1.00]; /* 設定1の周期別AT期待度（3〜5周期は30%以上） */
 /* 準確定示唆（※従来機種を参考＝一次解析でない）の重み。設定を切り捨てず強く傾ける */
 var QPEN=0.2;
+/* 準確定示唆の重みを何回ぶんまで効かせるか。⚠️ 無制限だと数回の観測で実質ハード制約になる */
+var QUASI_CAP=2;
 
 /* ===== イベント ===== */
 var EVS=[
  {id:"at",l:"AT当選",s:"強カワラッシュ",c:"#ff4081",cat:"at"},
- {id:"miko",l:"巫女pt 0pt到達",s:"乙女アタック抽選",c:"#42a5f5",cat:"miko"},
+ /* ⚠️ 2026-10-19 廃止（ユーザー指示）: 「巫女pt 0pt到達」をイベントとして1件ずつ記録していたが、
+    判別に要るのは【0pt到達回数】と【うち乙女アタック当選回数】の2つだけ。
+    カウンタタブの mikoT / mikoH で足りるので、イベント入力は廃止してカウンタに一本化した。
+    ⚠️ カンスケ滞在（当選率40.2%）とリールロック2段階契機は mikoT から除外すること（カウンタの説明に明記）。 */
  {id:"kyokawa",l:"強カワチャンス",c:"#66bb6a",cat:"kyokawa"},
  {id:"senbo",l:"戦国乙女BONUS",c:"#ffd54f",cat:"senbo"},
  {id:"ryoran",l:"繚乱の刻",s:"前兆",c:"#ffab40",cat:"ryoran"},
@@ -168,18 +173,34 @@ var EVS=[
 ];
 var EVMAP={};EVS.forEach(function(e){EVMAP[e.id]=e});
 
-var AT_KIK=[{id:"cyc",l:"周期到達"},{id:"otome",l:"乙女アタック"},{id:"kyokawa",l:"強カワチャンス"},
- {id:"senbo",l:"戦国乙女ボーナス"},{id:"tenjou",l:"天井(G数/周期)"},{id:"modoshi",l:"引き戻し(1周期目)"},{id:"fumei",l:"不明"}];
+/* ⚠️ 2026-10-19 是正（5サイト突合）:
+   - **強カワチャンスは当選契機ではない**（規定G数を加算して周期到達を早めるだけ）→ 削除
+   - **戦国乙女ボーナスは契機ではなく「AT初当り時の一部で突入する30Gの開始形態」** → 削除
+     （AT初当たりの分子からは estimate() が senboN ぶんを除いている。そちらは正しい）
+   - 実在するのに無かった **フリーズ / リールロック2段階** を追加 */
+var AT_KIK=[{id:"cyc",l:"周期到達"},{id:"otome",l:"乙女アタック"},
+ {id:"tenjou",l:"天井(999G/6周期)"},{id:"modoshi",l:"引き戻し(百花繚乱チャンス)"},
+ {id:"lock2",l:"リールロック2段階"},{id:"freeze",l:"夢幻の如くフリーズ"},{id:"fumei",l:"不明"}];
 var MIKO_RES=[{id:"hit",l:"乙女アタック当選"},{id:"miss",l:"非当選"}];
 var CZ_OUT=[{id:"at",l:"→ AT当選"},{id:"lose",l:"→ 失敗"}];
 var MIKO_MODE=[{id:"normal",l:"通常(カンスケ以外)",s:"判別に使用"},{id:"kansuke",l:"カンスケ滞在",s:"判別から除外"},
  {id:"lock",l:"リールロック2段階契機",s:"判別から除外"}];
-var KYO_RES=[{id:"at",l:"AT当選"},{id:"none",l:"非当選"}];
+/* ⚠️ 2026-10-19 是正（5サイト突合）: 強カワチャンスに「AT当選/非当選」は**存在しない**。
+   正体は**周期の規定ゲーム数を20〜300G加算するゾーン**（1G＋α・小役で継続）で、
+   AT当否を決める場所ではない。設定差は**突入率**側にある（設定1=1/36.8・他は非公開）。
+   → 勝敗は廃止し「出現回数＋内部状態」を記録する。 */
+var KYO_ST=[{id:"",l:"不明"},{id:"normal",l:"NORMAL"},{id:"high",l:"HIGH",s:"加算G優遇・50G以上濃厚"}];
 var ATCZ_T=[{id:"honnoji",l:"本能寺の変",s:"設1 1/114.8・勝率50%"},{id:"kessen",l:"決戦ノ刻",s:"設1 55%"},
  {id:"kensei_at",l:"剣聖チャンス(初当り時)",s:"設1 51%"},{id:"kensei_end",l:"剣聖チャンス(AT終了時)",s:"設1 70%"},
  {id:"kashin",l:"カシンバトル",s:"設1 50%"},{id:"ougai",l:"オウガイバトル",s:"設1 55%"},
- {id:"shutsujin",l:"出陣ボーナス",s:"設1 1/183.6"}];
-var ATCZ_RES=[{id:"win",l:"勝利/成功"},{id:"lose",l:"敗北/失敗"}];
+ /* ⚠️ 2026-10-19 是正（5サイト突合）: 出陣ボーナスは**CZではなく上乗せ特化ゾーン（疑似ボーナス・20G）**。
+    本能寺の変/決戦ノ刻/カシンバトル/オウガイバトル等に**勝った「報酬」**として得るものなので、
+    それ自体に勝敗は無い。→ 勝敗を出さず、上乗せG数（または出陣した乙女）を記録する。 */
+ {id:"shutsujin",l:"出陣ボーナス",s:"上乗せ特化20G・勝敗なし",nores:true}];
+var ATCZ_RES=[{id:"win",l:"勝利"},{id:"lose",l:"敗北"}];
+/* 剣聖チャンスは上位AT突入をかけた分岐なので「成功/失敗」。AT中CZではなくAT突入前 */
+var ATCZ_RES2=[{id:"win",l:"成功（上位ATへ）"},{id:"lose",l:"失敗（通常ATへ）"}];
+function atczRes(t){return (t==="kensei_at"||t==="kensei_end")?ATCZ_RES2:ATCZ_RES}
 var CYCS=[1,2,3,4,5,6];
 
 /* 演出/示唆メモ（設定示唆ではない＝推測に非加算） */
@@ -209,14 +230,11 @@ var ENSHUTSU=[
    {id:"other",l:"その他"}]},
  {id:"goemon",l:"ゴエモン依頼pt(穢れ)",opts:[
    {id:"get",l:"pt獲得"},{id:"max",l:"MAX到達"}]},
- {id:"atend_scr",l:"AT終了画面(テーブル示唆)",opts:[
-   {id:"nobunaga",l:"ノブナガ",s:"デフォルト"},
-   {id:"b_group",l:"マサムネ/ヒデヨシ",s:"周期テーブル 通常B以上示唆"},
-   {id:"b_group2",l:"モトナリ/ドウセツ/ソウリン",s:"通常B以上＋1周期目100G以内示唆"},
-   {id:"enemy",l:"敵キャラ集合",s:"ストラップモード「ヨシテル」濃厚"},
-   {id:"b_kakutei",l:"イエヤス/シンゲン/カンスケ/ヨシモト",s:"通常B以上濃厚（通常Aなら設定4以上→示唆タブへ）"},
-   {id:"red",l:"乙女集合(赤背景)",s:"天国濃厚（天国否定なら設定4以上→示唆タブへ）"},
-   {id:"gold",l:"乙女集合(金背景)",s:"天国濃厚＋設定2以上濃厚→示唆タブでカウント"}]}
+/* ⚠️ 2026-10-19 削除: ここに「AT終了画面(テーブル示唆)」があり、イベント「AT終了」と
+   **同じ7分類を二重に持っていた**。しかも実害があった——
+   「AT終了」から入れると周期テーブル(ST.tbl)と周期(ST.cyc)が更新されるのに、
+   こちらから入れると**何も更新されない**。同じものを記録したつもりで状態が食い違う。
+   → 終了画面は「AT終了」イベントに一本化した。 */
 ];
 
 /* ===== メモ専用の要素（設定差はないが、やめどき/追い方の判断に必要） ===== */
@@ -227,10 +245,19 @@ var ATEND_SCR=[
  {id:"b1",l:"マサムネ/ヒデヨシ",s:"通常B以上示唆",tbl:"通常B以上?"},
  {id:"b2",l:"モトナリ/ドウセツ/ソウリン",s:"通常B以上＋1周期目100G以内示唆",tbl:"通常B以上? 1周期目100G以内?"},
  {id:"enemy",l:"敵キャラ集合",s:"ストラップモード「ヨシテル」濃厚",tbl:""},
- {id:"b3",l:"イエヤス/シンゲン/カンスケ/ヨシモト",s:"通常B以上濃厚",tbl:"通常B以上濃厚"},
- {id:"red",l:"乙女集合(赤背景)",s:"天国濃厚",tbl:"天国濃厚"},
+ {id:"b3",l:"イエヤス/シンゲン/カンスケ/ヨシモト",s:"通常B以上濃厚（通常Aなら設定4以上→示唆タブへ）",tbl:"通常B以上濃厚"},
+ {id:"red",l:"乙女集合(赤背景)",s:"天国濃厚（天国否定なら設定4以上→示唆タブへ）",tbl:"天国濃厚"},
  {id:"gold",l:"乙女集合(金背景)",s:"天国濃厚＋設定2以上濃厚",tbl:"天国濃厚"}];
-var STRAP=[{id:"normal",l:"通常"},{id:"kansuke",l:"カンスケ",s:"乙女アタック除外"},{id:"yoshiteru",l:"ヨシテル",s:"上位"}];
+/* ⚠️ 2026-10-19 是正（5サイト突合）: 3種ではなく**通常＋6種**。重複なし・AT当選まで同じモードに滞在。
+   ★判別への影響: カンスケ＝乙女アタック当選率が40.2%になる（設定別20.3〜25.7%の表が使えない＝除外必須）。
+   ヒデヨシ＝周期テーブルが常に通常B以上なので、終了画面からのテーブル推測が無効になる。 */
+var STRAP=[
+ /* ⚠️ 2026-10-19（ユーザー指示）: 判別に効くのは**カンスケ**（乙女アタックの当選率が40.2%になり
+    設定別の表 20.3〜25.7% が使えない＝除外必須）と**ヨシテル**（上位AT直行）の2つだけ。
+    他は打ち方の参考にはなるが設定判別には使わないので「その他」に畳む。 */
+ {id:"kansuke",l:"カンスケ",s:"乙女アタック当選率40.2%＝判別から除外する"},
+ {id:"yoshiteru",l:"ヨシテル",s:"AT当選時に剣聖チャンス or 上位AT直行"},
+ {id:"other",l:"その他（全キャラ）",s:"ゴエモン / ノブナガ / ヒデヨシ / ミツヒデ ほか・通常"}];
 /* 周期テーブル：周期天井を管理（通常A=最大6 / 通常B=最大3 / 天国=1） */
 var TBLS=[{id:"",l:"不明",ceil:6,zone:"—"},
  {id:"a",l:"通常A",ceil:6,zone:"2･4周期◯ / 5周期◎ / 6周期天井"},
@@ -284,7 +311,7 @@ var SIGLBL={};CNTS.forEach(function(s){s.items.forEach(function(i){SIGLBL[i.k]=i
 
 /* ===== 状態 ===== */
 var LOG=[],CC={},COL={},TAB="rec",HAMARI="",USE_Q=true;
-var ST={cyc:1,cycG:"",miko:"",strap:"normal",tbl:"",tblId:"",mode:"",shop:"",dai:"",toshi:"",kaishu:"",memo:"",reset:"0"};
+var ST={cyc:1,cycG:"",miko:"",strap:"other",tbl:"",tblId:"",mode:"",shop:"",dai:"",toshi:"",kaishu:"",memo:"",reset:"0"};
 var curEv=null,curG="",curKik=null,curCyc=null,curRes=null,curMode=null,curType=null,curMai="",curNote="",curCat=null,curOpt=null,curCzout=null;
 var rstP=false,rstT=null,SK="otome5_v1";
 
@@ -327,25 +354,41 @@ function estimate(){
  var atX=st.at-sbN;
  if(tG>=1000&&atX>0){used=true;
   for(i=0;i<SETS.length;i++){s=SETS[i];var p=1/ATX[s];ll[s]+=atX*Math.log(p)+(tG-atX)*Math.log(1-p);}
-  reasons.push("AT初当たり 1/"+Math.round(tG/st.at)+(sbN?"（BONUS"+sbN+"回は別計上）":""));}
+  // ⚠️ 2026-10-19 是正: 表示は st.at（BONUS込み）で割っていたのに、尤度に使う分子は atX（BONUS除外）。
+  //    AT3回・BONUS2回・3000G で「1/1000」と出るが実際に計算していたのは 1/3000 だった。
+  reasons.push("AT初当たり 1/"+Math.round(tG/atX)+(sbN?"（BONUS"+sbN+"回は別計上）":""));}
  // 乙女アタック当選率（分母＝0pt到達回数）
- if(CC.mikoT>CC.mikoH)bino(CC.mikoH,CC.mikoT,OTOME,"乙女アタック");
- else if(CC.mikoH>0)warnMiko=true;
+ // ⚠️ 2026-10-19 是正: 以前は `mikoT>mikoH`（厳密不等号）だったため、**全部当選（10/10・1/1）を
+ //    丸ごと捨てていた**。分母さえ入っていれば当選率は計算できる。
+ //    警告を出すべきなのは「当選だけ記録して分母(0pt到達)を入れていない」ケース。
+ if(CC.mikoT>0&&CC.mikoH<=CC.mikoT)bino(CC.mikoH,CC.mikoT,OTOME,"乙女アタック");
+ else if(CC.mikoH>0&&CC.mikoT===0)warnMiko=true;
  // 戦国乙女ボーナス（分母＝通常総G）
- if(tG>=1000){var sb={};for(i=0;i<SETS.length;i++)sb[SETS[i]]=1/SENBO[SETS[i]];
-  bino(Math.min(CC.senboN,tG),tG,sb,"戦国乙女BONUS "+CC.senboN+"回");}
+ // ⚠️ 2026-10-19 是正: 以前は tG>=1000 だけで無条件に入れていたため、**何も記録していないのに
+ //    ハマリG数を入れただけで推定が動き、設定1が最有力(19.8%)になっていた**（実測）。
+ //    「0回」は『引けなかった』と『数えていない』を区別できない。1/21206〜1/5502 のレアイベントで
+ //    3000Gの期待値は0.14回＝ほぼ無情報なのに、全設定に差がついていた。
+ //    → **1回以上記録されているときだけ**証拠として使う。
+ //    ⑧ label に回数を入れると bino 側の "succ/trials" と二重になるので外した。
+ if(tG>=1000&&CC.senboN>0){var sb={};for(i=0;i<SETS.length;i++)sb[SETS[i]]=1/SENBO[SETS[i]];
+  bino(Math.min(CC.senboN,tG),tG,sb,"戦国乙女BONUS");}
  // ハード制約（解析で確定している示唆）
  for(var k in MASKS){if(CC[k]>0){var mn=MASKS[k];
    for(i=0;i<SETS.length;i++)if(SETS[i]<mn)mask[SETS[i]]=false;
    conf.push(SIGLBL[k]);used=true;}}
  // 準確定（従来機種参考）
+ // ⚠️ 2026-10-19 是正: 回数そのままで累乗していたため QPEN(0.2)^n となり、
+ //    同じ準確定を3回見ると設定1が 3.85%→0.16%＝**実質ハード制約**になっていた。
+ //    これは「従来機種参考」と自分で注記している弱い根拠には強すぎる。→ **上限2回**にする。
  if(USE_Q)for(var k2 in QUASI){if(CC[k2]>0){var mn2=QUASI[k2];used=true;
-   for(i=0;i<SETS.length;i++){s=SETS[i];if(s<mn2)ll[s]+=CC[k2]*Math.log(QPEN);}
-   quasi.push(SIGLBL[k2]);}}
+   var nq=Math.min(CC[k2],QUASI_CAP);
+   for(i=0;i<SETS.length;i++){s=SETS[i];if(s<mn2)ll[s]+=nq*Math.log(QPEN);}
+   quasi.push(SIGLBL[k2]+(CC[k2]>QUASI_CAP?("×"+CC[k2]+"→上限"+QUASI_CAP):""));}}
  // 入力整合性
  var warn=[];
- if(warnMiko)warn.push("乙女アタックは非当選の回も記録しないと計算されません（現在 "+CC.mikoH+"/"+CC.mikoT+"）");
+ if(warnMiko)warn.push("乙女アタックの分母（0pt到達回数）が0です。当選だけでは当選率を計算できません（現在 "+CC.mikoH+"/"+CC.mikoT+"）");
  if(CC.mikoH>CC.mikoT)warn.push("乙女アタック当選 "+CC.mikoH+"回 > 0pt到達 "+CC.mikoT+"回");
+ if(tG>0&&CC.senboN>tG)warn.push("戦国乙女BONUS "+CC.senboN+"回 > 総G "+tG+"（総G/ハマリの入力漏れの可能性）");
  if(CC.honW>CC.honT)warn.push("本能寺 勝利数 > 突入数");
  if(CC.kesW>CC.kesT)warn.push("決戦ノ刻 勝利数 > 突入数");
  var noG=0;for(i=0;i<LOG.length;i++)if(LOG[i].ev==="at"&&!(parseInt(LOG[i].g)>0))noG++;
@@ -431,22 +474,31 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
    AT_KIK.forEach(function(k){h+='<button type="button" class="dt-b'+(curKik===k.id?' s':'')+'" data-kik="'+k.id+'">'+k.l+'</button>'});
    h+='</div><div class="flow-t" style="margin-top:8px">② 何周期目で当選したか</div><div class="grid g6">';
    CYCS.forEach(function(c){h+='<button type="button" class="ptbtn'+(curCyc===c?' s':'')+'" data-cyc="'+c+'">'+c+'</button>'});
-   h+='</div><div class="flow-t" style="margin-top:8px">③ 当選時のハマりG（通常総Gに加算）</div>';
-   h+='<input type="number" inputmode="numeric" class="dt-f" id="iG" value="'+esc(curG)+'" placeholder="通常時ゲーム数">';
+   /* ⚠️ 2026-10-19 是正: ここに専用のG数入力があり、**画面上部のハマりG欄と同じ値を2か所で
+      持っていた**（AT選択時にコピーし、確定時にクリアする同期をとっていた）。
+      他の7イベントは上の欄しか見ないので、ATだけ別入力なのは不整合。上の欄に一本化した。 */
+   h+='</div><div class="flow-t" style="margin-top:8px">③ 当選時のハマりG</div>';
+   h+='<div style="padding:9px 11px;border-radius:10px;background:rgba(255,64,129,.08);'
+    +'border:1px solid rgba(255,64,129,.25);font-size:12px;font-weight:700;color:#ff80ab">'
+    +'上の<b>ハマりG</b>欄の値を使います → <b style="font-size:15px">'+(parseInt(HAMARI)||0)+'G</b>'
+    +'<div style="font-size:9px;font-weight:400;color:rgba(255,255,255,.4);margin-top:3px">'
+    +'記録すると通常総Gに加算され、ハマりG欄は0に戻ります</div></div>';
    h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:6px;line-height:1.5">設定1の周期別AT期待度は1・2周期目 約40%、3〜5周期目 30%以上、6周期目で天井。高設定ほど早い周期で当選しやすいとされるため、何周期目かは必ず記録を。</div></div>';}
-  if(ev.cat==="miko"){
-   h+=detRow("状況（判別に使えるかの判定）",MIKO_MODE,"mode",curMode);
-   h+=detRow("乙女アタック抽選の結果",MIKO_RES,"res",curRes);
-   if(curRes==="hit")h+=detRow("乙女アタック消化後",CZ_OUT,"czout",curCzout);
-   h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5">巫女ポイントが0ptに到達した時のCZ抽選で、本機で<b style="color:#ff80ab">最も実用的な判別要素</b>（設1:20.3%→設6:25.7%）。周期の進行とは別系統なので、ここでは周期は動きません。カンスケ滞在時とリールロック2段階契機は抽選が別なので「除外」を選べばカウントされません。当選しなかった回も必ず記録してください。</div>';}
-  if(ev.cat==="kyokawa"){h+=detRow("結果",KYO_RES,"res",curRes);
+  if(ev.cat==="kyokawa"){h+=detRow("内部状態（任意）",KYO_ST,"res",curRes);
+   h+='<div class="dt"><div class="dt-t">加算されたG数（任意）</div>'
+    +'<input type="number" inputmode="numeric" class="dt-f" id="iMai" value="'+esc(curMai)+'" placeholder="20〜300G"></div>';
    h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5">出現率に設定差ありですが<b>設定1の1/36.8しか判明していない</b>ため、推測には加算せず実測値のみ表示します（示唆タブの参考カウンター）。</div>';}
   if(ev.cat==="senbo"){h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin:8px 0;line-height:1.6;padding:9px 10px;border-radius:11px;background:rgba(255,213,79,.06);border:1px solid rgba(255,213,79,.18)">戦国乙女ボーナスは<b style="color:#ffd54f">本機最大級の設定差（約4倍）</b>。設1で1/21206.7、設6で1/5502.7。引けた時点で強カワラッシュ濃厚です。記録すると示唆タブのカウンターにも自動加算されます。</div>';}
   if(ev.cat==="ryoran"){h+=detRow("種別",RYO_T,"type",curType)+detRow("結果",RYO_RES,"res",curRes);
    var nx=nextCyc(curRes);
    if(nx)h+='<div style="padding:8px 10px;border-radius:10px;background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.3);font-size:11px;color:#ffab40;font-weight:700;margin:6px 0">'+nx+'</div>';
    h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5"><b style="color:#ffab40">周期はここで進みます</b>（巫女ポイントとは別系統）。紫炎はAT期待度61.4%(設定1)で、3周期目以降の突入率に設定差があるとされます。ただし他設定の数値が未判明のため推測には加算せず、突入率と勝率の実測を示唆タブに表示します。紫炎からハズレた場合は周期テーブルの手掛かりになります。</div>';}
-  if(ev.cat==="atcz"){h+=detRow("種別",ATCZ_T,"type",curType)+detRow("結果",ATCZ_RES,"res",curRes);
+  if(ev.cat==="atcz"){h+=detRow("種別",ATCZ_T,"type",curType);
+   var _t=ATCZ_T.filter(function(x){return x.id===curType})[0];
+   if(_t&&_t.nores){
+    h+='<div class="dt"><div class="dt-t">上乗せG数 / 出陣した乙女（任意）</div>'
+     +'<input class="dt-f" id="iMai" value="'+esc(curMai)+'" placeholder="例: 120G / 赤乙女"></div>';
+   }else if(curType){h+=detRow("結果",atczRes(curType),"res",curRes);}
    h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:-4px;line-height:1.5">いずれも設定1の数値のみ判明のため、推測には加算せず実測の勝率だけを表示します。</div>';}
   if(ev.cat==="atend"){
    h+='<div class="dt"><div class="dt-t">AT終了画面（周期テーブル示唆＝メモ）</div><div class="dt-r">';
@@ -540,10 +592,10 @@ function rMemo(){var ct=document.getElementById("ct"),h='<div class="rec">';
 
 function canAdd(){if(!curEv)return false;var ev=EVMAP[curEv];
  if(ev.cat==="at")return!!(curKik&&curCyc);
- if(ev.cat==="miko")return!!(curMode&&curRes&&(curRes!=="hit"||curCzout));
- if(ev.cat==="kyokawa")return!!curRes;
+ if(ev.cat==="kyokawa")return true;   /* 出現したこと自体が記録。結果の概念は無い */
  if(ev.cat==="ryoran")return!!(curType&&curRes);
- if(ev.cat==="atcz")return!!(curType&&curRes);
+ if(ev.cat==="atcz"){var t=ATCZ_T.filter(function(x){return x.id===curType})[0];
+  return !!(curType&&(t&&t.nores?true:curRes));}
  if(ev.cat==="enshutsu")return!!(curCat&&curOpt);
  return true}
 
@@ -554,10 +606,13 @@ function buildNote(e){var b=[],f;
  if(e.type){f=ATCZ_T.concat(RYO_T).filter(function(x){return x.id===e.type})[0];if(f)b.push(f.l)}
  if(e.scr){f=ATEND_SCR.filter(function(x){return x.id===e.scr})[0];if(f)b.push("終了画面:"+f.l+"("+f.s+")")}
  if(e.czout){f=CZ_OUT.filter(function(x){return x.id===e.czout})[0];if(f)b.push(f.l)}
- if(e.res){f=MIKO_RES.concat(KYO_RES,ATCZ_RES,RYO_RES).filter(function(x){return x.id===e.res})[0];if(f)b.push(f.l)}
+ /* ⚠️ KYO_RES（強カワチャンスの勝敗）は 2026-10-19 に廃止。代わりに内部状態 KYO_ST を見る。
+    剣聖チャンスは ATCZ_RES2（成功/失敗）なので、そちらも候補に入れる。 */
+ if(e.res){f=MIKO_RES.concat(KYO_ST,ATCZ_RES,ATCZ_RES2,RYO_RES).filter(function(x){return x.id===e.res&&x.l})[0];
+  if(f)b.push(f.l)}
  if(e.encat){var g=ENSHUTSU.filter(function(x){return x.id===e.encat})[0];
   if(g){var o=g.opts.filter(function(x){return x.id===e.enopt})[0];b.push(g.l+"："+(o?o.l:e.enopt)+(o&&o.s?"("+o.s+")":""))}}
- if(e.mai)b.push(e.mai+"枚");
+ if(e.mai)b.push(/[GgＧ]/.test(String(e.mai))?String(e.mai):(e.mai+"枚"));
  if(e.note)b.push(esc(e.note));
  return b.join("　")}
 
@@ -723,16 +778,13 @@ function rExp(){var ct=document.getElementById("ct"),E=estimate(),s=stats(),tG=t
 /* ===== アクション ===== */
 function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
  function bump(k){if(k in CC){CC[k]++;e.ck.push(k)}}
- if(ev.cat==="at"){e.kik=curKik;e.cyc=curCyc;e.g=curG||"0";HAMARI="";
+ if(ev.cat==="at"){e.kik=curKik;e.cyc=curCyc;e.g=String(parseInt(HAMARI)||0);HAMARI="";
   e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
   ST.cyc=1;ST.cycG="";ST.miko="";}
- if(ev.cat==="miko"){e.mode=curMode;e.res=curRes;if(curCzout)e.czout=curCzout;
-  if(curMode==="normal"){bump("mikoT");if(curRes==="hit")bump("mikoH");}
-  e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
-  ST.miko="";}   // 巫女ptは0pt到達で再セット。周期には触れない（周期が進むのは繚乱の刻）
- if(ev.cat==="kyokawa"){e.res=curRes;bump("kyoN");}
+ /* ⚠️ 2026-10-19 廃止: 巫女pt 0pt到達のイベント記録。カウンタ mikoT/mikoH に一本化した */
+ if(ev.cat==="kyokawa"){if(curRes)e.res=curRes;if(curMai)e.mai=curMai;bump("kyoN");}
  if(ev.cat==="senbo"){bump("senboN");}
- if(ev.cat==="atcz"){e.type=curType;e.res=curRes;
+ if(ev.cat==="atcz"){e.type=curType;if(curRes)e.res=curRes;if(curMai)e.mai=curMai;
   if(curType==="honnoji"){bump("honT");if(curRes==="win")bump("honW");}
   if(curType==="kessen"){bump("kesT");if(curRes==="win")bump("kesW");}}
  if(ev.cat==="ryoran"){e.type=curType;e.res=curRes;
@@ -758,7 +810,7 @@ document.getElementById("W").addEventListener("click",function(ev){var el=ev.tar
   if(el.dataset.tab){TAB=el.dataset.tab;render();return}
   if(el.dataset.ev){curEv=(curEv===el.dataset.ev?null:el.dataset.ev);
    curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curCat=null;curOpt=null;curCzout=null;
-   curG=(curEv==="at"?(HAMARI||""):"");render();return}
+   curG="";render();return}   /* ⚠️ 旧: AT選択時に HAMARI を curG へコピーしていた（二重管理） */
   if(el.dataset.kik!==undefined){curKik=(curKik===el.dataset.kik?null:el.dataset.kik);render();return}
   if(el.dataset.cyc!==undefined){curCyc=(curCyc===+el.dataset.cyc?null:+el.dataset.cyc);render();return}
   if(el.dataset.mode!==undefined){curMode=(curMode===el.dataset.mode?null:el.dataset.mode);render();return}
@@ -787,7 +839,7 @@ document.getElementById("W").addEventListener("click",function(ev){var el=ev.tar
 document.getElementById("W").addEventListener("input",function(ev){
  if(ev.target.id==="iH"){HAMARI=ev.target.value;save();rEst();rQS();
   var g=document.querySelector(".gtot b");if(g)g.textContent=totalG();return}
- if(ev.target.id==="iG")curG=ev.target.value;
+ /* iG（AT専用G入力）は 2026-10-19 に廃止。G数は上のハマりG欄（HAMARI）に一本化 */
  if(ev.target.id==="iN")curNote=ev.target.value;
  if(ev.target.id==="iMai")curMai=ev.target.value;
  var mp={iCycG:"cycG",iMiko:"miko",mShop:"shop",mDai:"dai",mToshi:"toshi",mKaishu:"kaishu",mMemo:"memo"};
