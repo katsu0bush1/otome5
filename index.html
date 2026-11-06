@@ -169,6 +169,10 @@ var EVS=[
     ＝イベントとカウンタで**同じものを二重に持っていた**）。
     → カウンタタブの kyoN / kyoHigh に一本化。巫女pt 0pt到達（2026-10-19）と同じ対処。 */
  {id:"senbo",l:"戦国乙女BONUS",c:"#ffd54f",cat:"senbo"},
+ /* 2026-11-07（ユーザー指示）: 「乙女ストラップモードは AT当選・戦国乙女ボーナスなどと同じように
+    ボタンにして、その中に各乙女を入れて」。状態タブの長い選択列（2026-10-21〜）は撤去し、
+    ここから記録する。記録すると ST.strap（やめどき警告）と示唆タブの出現回数に**両方**入る。 */
+ {id:"strap",l:"乙女ストラップ",s:"モード滞在",c:"#f06292",cat:"strap"},
  {id:"ryoran",l:"繚乱の刻",s:"前兆",c:"#ffab40",cat:"ryoran"},
  {id:"atcz",l:"AT中CZ",s:"本能寺 他",c:"#ce93d8",cat:"atcz"},
  {id:"atend",l:"AT終了",c:"#80cbc4",cat:"atend"},
@@ -284,20 +288,18 @@ var STRAP=[
  {id:"hideyoshi",l:"ヒデヨシ",s:"周期テーブル常に通常B以上→終了画面のテーブル推測は無効。設定差あり(数値未判明)"},
  {id:"kansuke",l:"カンスケ",s:"乙女アタック当選率40.2%＝判別から除外する"},
  {id:"mitsuhide",l:"ミツヒデ",s:"本能寺の変ストックありでAT開始"},
- {id:"yoshiteru",l:"ヨシテル",s:"最上位。AT当選時に剣聖チャンス or 上位AT直行"},
- /* 2026-11-04（ユーザー指示）: 「乙女の数だけボタンにする」。
-    効果の解析が出ていない乙女も含め、ストラップに出うる全員ぶん用意する。
-    ⚠️ 既存の6人の id は**変えない**（保存済みの ST.strap が読めなくなるため）。 */
- {id:"dousetsu", l:"ドウセツ"},
- {id:"ieyasu",   l:"イエヤス"},
- {id:"sourin",   l:"ソウリン"},
- {id:"masamune", l:"マサムネ"},
- {id:"motonari", l:"モトナリ"},
- {id:"yoshimoto",l:"ヨシモト"},
- {id:"ujimasa",  l:"ウジマサ"},
- {id:"kenshin",  l:"ケンシン"},
- {id:"shingen",  l:"シンゲン"},
- {id:"yoshiaki", l:"義昭"}];
+ {id:"yoshiteru",l:"ヨシテル",s:"最上位。AT当選時に剣聖チャンス or 上位AT直行"}];
+/* ⚠️ 2026-11-07 是正（ユーザー指摘「存在しない乙女ストラップモードが入っていないか？」・6サイト突合）:
+   2026-11-04 に「乙女の数だけボタンにする」として **ドウセツ/イエヤス/ソウリン/マサムネ/モトナリ/
+   ヨシモト/ウジマサ/ケンシン/シンゲン/義昭 の10人を足したが、どれもストラップモードとして存在しない**。
+   なな徹・一撃・DMMぱちタウン・ちょんぼりすた・街道（kaidou.repop）・むちぼく の**6サイトすべて**が
+   「乙女ストラップモードは**全6種**（ゴエモン/ノブナガ/ヒデヨシ/カンスケ/ミツヒデ/ヨシテル）」で一致。
+   ケンシン・シンゲンはアイキャッチ等の**示唆演出**に出るキャラでモードではない（ちょんぼりすた）。
+   モトナリは AT の「三魂爪演出」として出る（なな徹）。
+   ★教訓: 「キャラが居る」≠「そのモードが存在する」。選択肢を足す前に一次情報を引くこと。
+   → 10人を削除。保存済みの値は下の移行処理（load()）で「非滞在/不明」へ寄せる。 */
+var STRAP_RETIRED=["dousetsu","ieyasu","sourin","masamune","motonari","yoshimoto",
+ "ujimasa","kenshin","shingen","yoshiaki"];
 
 /* ENSHUTSU から削除した演出カテゴリ id → 表示名とラベル解決用の選択肢。
    ⚠️ buildNote は `ENSHUTSU.filter(...)` が undefined だと `if(g)` で**丸ごとスキップ**するので、
@@ -395,10 +397,14 @@ var CNTS=[
        6設定ぶんの数値があるのは AT初当り／乙女アタック当選率／戦国乙女ボーナスの3つだけ）。
        数値の無い重みを尤度に入れると推定そのものが壊れるので、**回数を数えるだけ**にしてある。
        設定別の数値が出たらここを推測に接続する。 */
+ /* ⚠️ 2026-11-07: 記録タブの「乙女ストラップ」イベントから自動加算するので、**全6種**そろえる
+    （4種しか無く、カンスケとミツヒデを記録しても数が残らなかった）。 */
  {id:"strapN",t:"🎀 乙女ストラップ 出現回数（設定差あり・数値未公表のため非加算）",items:[
    {k:"sNobunaga", l:"ノブナガ 滞在",  s:"高設定ほど出現しやすい（数値未公表）"},
    {k:"sHideyoshi",l:"ヒデヨシ 滞在",  s:"高設定ほど出現しやすい（数値未公表）"},
    {k:"sGoemon",   l:"ゴエモン 滞在",  s:"高設定ほど出現しやすい（数値未公表）"},
+   {k:"sKansuke",  l:"カンスケ 滞在",  s:"この間の0pt到達は巫女カウンタから除外する"},
+   {k:"sMitsuhide",l:"ミツヒデ 滞在",  s:"本能寺の変ストックありでAT開始"},
    {k:"sYoshiteru",l:"ヨシテル 滞在",  s:"最上位モード（数値未公表）"}]},
  {id:"ref",t:"📎 参考カウンター（推測に非加算）",items:[
    {k:"honT",l:"本能寺の変 回数"},{k:"honW",l:"↑うち勝利",s:"設1で約50%"},
@@ -407,7 +413,10 @@ var CNTS=[
    {k:"enbT",l:"繚乱の刻・焔舞 突入"},{k:"enbW",l:"↑うちAT当選"}]}
 ];
 var ALLCK=[];CNTS.forEach(function(s){s.items.forEach(function(i){ALLCK.push(i.k)})});
-var CNT_ORDER=["miko","senbo","stamp","atend","ending","conf","kyokawa","strapN","nagi","ref"];
+/* 示唆タブの並び。⚠️ 2026-11-07（ユーザー指示）: **よく数えるものを上に**
+   ＝①強カワチャンス ②巫女0pt ③乙女ストラップ出現回数。以降は従来順。
+   ⚠️ ここに無い id のセクションは**画面に出ない**ので、CNTS に足したら必ずここにも足すこと。 */
+var CNT_ORDER=["kyokawa","miko","strapN","senbo","stamp","atend","ending","conf","nagi","ref"];
 var CNTMAP={};CNTS.forEach(function(s){CNTMAP[s.id]=s});
 /* ハード制約（解析で確定）と準確定（従来機種参考）の対応 */
 var MASKS={sKa:2,sKichi:3,sRyo:4,sYu:5,sKiwa:6,aGold:2,aRed:4,aTblA:4};
@@ -434,7 +443,10 @@ function load(){initC();
     保存済みの値が残っていると状態タブで**どのボタンも選択表示にならない**（ST.strap==="other" に
     一致する m.id が無いため）。値だけ残ってメモ出力に "other" と出る＝静かに壊れる。
     → 全6キャラへ展開して「その他」は存在しなくなったので、非滞在/不明（""）へ寄せる。 */
- if(ST.strap==="other")ST.strap="";}
+ if(ST.strap==="other")ST.strap="";
+ /* ⚠️ 2026-11-07 データ移行: 存在しないストラップモード10人を削除した（6サイト突合）。
+    保存済みの値が残るとどのボタンも選択表示にならず、出力に生の id が出る＝静かに壊れる。 */
+ if(STRAP_RETIRED.indexOf(ST.strap)>=0)ST.strap="";}
 function save(){try{localStorage.setItem(SK+"c",JSON.stringify(CC));localStorage.setItem(SK+"l",JSON.stringify(LOG));
  localStorage.setItem(SK+"h",HAMARI);localStorage.setItem(SK+"u",USE_Q?"1":"0");
  localStorage.setItem(SK+"s",JSON.stringify(ST))}catch(e){}}
@@ -609,7 +621,9 @@ function detRow(t,arr,key,cur){var h='<div class="dt"><div class="dt-t">'+t+'</d
 function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
  h+='<div class="rowg"><label>現在のハマりG</label><input type="number" inputmode="numeric" id="iH" value="'+esc(HAMARI)+'" placeholder="0" class="gin">';
  h+='<span class="gtot">通常総G <b style="color:#ff80ab">'+totalG()+'</b><br>天井 G数天井/最大6周期</span></div>';
- h+=stPanel();
+ /* ⚠️ 2026-11-07（ユーザー指示「下までスクロールしないと入力できないのが非常にストレス」）:
+    ここにあった状態パネル（stPanel）を**記録ボタンより下へ移した**。
+    イベントボタンが画面1枚目に来るので、開いてすぐ記録できる。状態の確認・修正は後から。 */
  h+='<div class="grid g3">';
  EVS.forEach(function(e){var sel=(curEv===e.id);
   h+='<button type="button" class="eb'+(sel?' s':'')+'" data-ev="'+e.id+'" style="background:'+e.c+'1e;color:'+e.c+';border-color:'+e.c+'30">'+e.l+(e.s?'<small>'+e.s+'</small>':'')+'</button>';});
@@ -633,6 +647,16 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
   /* 強カワチャンスの入力欄は 2026-10-21 に撤去（カウンタ kyoN / kyoHigh に一本化）。
      KYO_ST の定義は**過去ログの表示に使うので残してある**（e.res のラベル解決）。 */
   if(ev.cat==="senbo"){h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin:8px 0;line-height:1.6;padding:9px 10px;border-radius:11px;background:rgba(255,213,79,.06);border:1px solid rgba(255,213,79,.18)">戦国乙女ボーナスは<b style="color:#ffd54f">本機最大級の設定差（約4倍）</b>。設1で1/21206.7、設6で1/5502.7。引けた時点で強カワラッシュ濃厚です。記録すると示唆タブのカウンターにも自動加算されます。</div>';}
+  if(ev.cat==="strap"){
+   h+='<div class="flow"><div class="flow-t">滞在している乙女（全6種）</div><div class="dt-r">';
+   STRAP.filter(function(m){return m.id}).forEach(function(m){
+    h+='<button type="button" class="dt-b'+(curOpt===m.id?' s':'')+'" data-enopt="'+m.id+'">'+m.l
+     +(m.s?'<small style="display:block;font-size:8px;opacity:.55">'+m.s+'</small>':'')+'</button>'});
+   h+='</div>';
+   if(ST.strap){var _cur=STRAP.filter(function(x){return x.id===ST.strap})[0];
+    h+='<div style="font-size:10px;color:#f06292;margin-top:7px">いまの滞在: <b>'+(_cur?_cur.l:esc(ST.strap))
+     +'</b> <button type="button" data-clrstrap="1" style="font-size:9px;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);margin-left:4px">非滞在に戻す</button></div>';}
+   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:6px;line-height:1.5">見分け方は液晶左上の「乙女ストラップ」。<b>同キャラ1個=低 / 2個=中 / 3個=滞在濃厚</b>。記録すると示唆タブの出現回数に加算され、やめどき判定にも反映されます。出現率に設定差はありますが<b>設定1〜6の数値が未公表</b>なので推測には加算しません。</div></div>';}
   if(ev.cat==="ending"){h+=detRow("ボイス（示唆）",END_VOICE,"type",curType);
    h+='<div class="dt"><div class="dt-t">サイドランプ（記録のみ・自由記入）</div>'
     +'<input type="text" class="dt-f" id="iLamp" value="'+esc(curLamp)+'" placeholder="見たままを記入（例: 紫に点滅）"></div>';
@@ -669,6 +693,7 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
   h+='<div class="dt"><input type="text" class="dt-f" id="iN" placeholder="メモ（任意）" value="'+esc(curNote)+'"></div>';}
  var ok=canAdd();
  h+='<button type="button" class="ab '+(ok?'ok':'no')+'" data-a="add">'+(ok?'✓ 記録する':(curEv?'↑ 内容を選択':'↑ イベントを選択'))+'</button>';
+ h+=stPanel();
  if(LOG.length>0){h+='<div class="rec-t">直近の記録</div>'+buildTable(Math.max(0,LOG.length-6),LOG.length,true);}
  h+='</div>';ct.innerHTML=h}
 
@@ -682,15 +707,14 @@ function cycMode(){var m=MODES.filter(function(x){return x.id===ST.mode})[0];ret
 function ceilCyc(){var c=cycTbl().ceil;if(ST.reset==="1")c=Math.min(c,4);return c}
 
 function yamedoki(){
- var c=parseInt(ST.cyc)||1,g=parseInt(ST.cycG)||0,out=[],T=cycTbl(),M=cycMode(),ce=ceilCyc();
- out.push({t:T.l+" / 周期天井 "+ce+"周期"+(ST.reset==="1"?"（設定変更で最大4に短縮）":""),
-   s:"ゾーン: "+T.zone,c:"#ffab40"});
- if(ST.mode)out.push({t:M.l+" / 最大"+M.max+"G で周期到達",s:"ゾーン: "+M.zone,c:"#64b5f6"});
- if(c===1)out.push({t:"続行推奨",s:"1周期目は引き戻しモードなら最大200G消化で周期到達、AT期待度は設定1でも約40%。AT終了後は1周期目まで必ずフォロー。",c:"#66bb6a"});
- else if(c>=ce)out.push({t:"続行必須",s:c+"周期目。"+ce+"周期目が周期天井なのでAT当選が確定します。",c:"#ef5350"});
- else if(ce-c<=1)out.push({t:"続行推奨",s:c+"周期目。天井まで残り"+(ce-c)+"周期。抜けるまで回すのが基本。",c:"#66bb6a"});
- else if(ST.tblId==="b"||ST.tblId==="heaven")out.push({t:"続行推奨",s:T.l+"滞在。天井"+ce+"周期までが近いので続行。",c:"#66bb6a"});
- else out.push({t:"ヤメ可",s:c+"周期目・周期内"+g+"G。1周期目を消化済みで高テーブル/天国の示唆が無ければヤメて問題なし。通常Bの天井3周期まで狙うのは投資リスクが大きい。",c:"#8899aa"});
+ var out=[];
+ /* ⚠️ 2026-11-07（ユーザー指示）: ストラップモードと記録ボタンのあいだにあった
+    **「周期（テーブル/周期天井）」「モード」「続行推奨/続行必須/ヤメ可」の3カードを撤去**。
+    どれも周期テーブル・周期モードの選択から機械的に出る説明文で、選んだ内容が
+    そのまま書き戻されるだけ（新しい情報が無い）のに縦を大きく食っていた。
+    ⚠️ 残すのは**自分で選んだ内容から導けない情報**だけ: 終了画面から入ったテーブル示唆と、
+       ストラップごとの「判別に効く注意」（カンスケは除外が必要、ヒデヨシは推測が無効…）。
+    ⚠️ `ceilCyc()` は繚乱の刻の周期進行（addEntry）でまだ使うので消さないこと。 */
  if(ST.tbl)out.push({t:"テーブル示唆",s:ST.tbl+" → 天国の可能性を考慮して1周期目到達まではフォロー推奨。",c:"#ffab40"});
  if(ST.strap==="yoshiteru")out.push({t:"ストラップ ヨシテル",s:"上位モード滞在。続行推奨。",c:"#ffab40"});
  if(ST.strap==="kansuke")out.push({t:"ストラップ カンスケ",s:"乙女アタック当選率が40.2%固定。この間の0pt到達は判別から除外してください。",c:"#42a5f5"});
@@ -707,10 +731,9 @@ function stPanel(){var h='<div style="margin:0 0 10px;padding:10px 11px;border-r
  h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期</div><div class="grid g6" style="margin-bottom:7px">';
  for(var c=1;c<=6;c++)h+='<button type="button" class="ptbtn'+((parseInt(ST.cyc)||1)===c?' s':'')+'" data-stcyc="'+c+'">'+c+'</button>';
  h+='</div>';
- h+='<div style="display:flex;gap:6px;margin-bottom:7px">';
- h+='<div style="flex:1"><div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期内G数</div><input type="number" inputmode="numeric" class="dt-f" id="iCycG" value="'+esc(ST.cycG)+'" placeholder="0"></div>';
- h+='<div style="flex:1"><div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">巫女pt(999→0)</div><input type="number" inputmode="numeric" class="dt-f" id="iMiko" value="'+esc(ST.miko)+'" placeholder="残pt"></div>';
- h+='</div>';
+ /* ⚠️ 2026-11-07（ユーザー指示）: **周期内G数と巫女pt(残pt)の入力欄を撤去**した。
+    どちらも推測には非加算で、毎ゲーム変わるので入力が追いつかない＝画面を長くするだけだった。
+    ST.cycG / ST.miko は履歴の巻き戻し（e.prev）で使うのでデータ側には残す。 */
  h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期テーブル（推定）</div><div class="dt-r" style="margin-bottom:7px">';
  TBLS.forEach(function(x){h+='<button type="button" class="dt-b'+(ST.tblId===x.id?' s':'')+'" data-tbl="'+x.id+'">'+x.l+'<small style="display:block;font-size:8px;opacity:.55">天井'+x.ceil+'周期</small></button>'});
  h+='</div>';
@@ -718,9 +741,9 @@ function stPanel(){var h='<div style="margin:0 0 10px;padding:10px 11px;border-r
  MODES.forEach(function(x){h+='<button type="button" class="dt-b'+(ST.mode===x.id?' s':'')+'" data-mode2="'+x.id+'">'+x.l+'<small style="display:block;font-size:8px;opacity:.55">最大'+x.max+'G</small></button>'});
  h+='</div>';
  h+='<div class="dt-r" style="margin-bottom:7px"><button type="button" class="dt-b'+(ST.reset==="1"?' s':'')+'" data-reset="1">設定変更後（周期天井 最大4に短縮）</button></div>';
- h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">乙女ストラップモード</div><div class="dt-r" style="margin-bottom:7px">';
- STRAP.forEach(function(m){h+='<button type="button" class="dt-b'+(ST.strap===m.id?' s':'')+'" data-strap="'+m.id+'">'+m.l+(m.s?'<small style="display:block;font-size:8px;opacity:.55">'+m.s+'</small>':'')+'</button>'});
- h+='</div>';
+ /* ⚠️ 2026-11-07（ユーザー指示）: 乙女ストラップモードの選択列はここから撤去し、
+    **記録タブのイベントボタン「乙女ストラップ」**に移した（AT当選などと同じ扱い）。
+    滞在中は下のやめどき警告に出る。 */
  if(ST.tbl)h+='<div style="font-size:10px;color:#ffab40;margin-bottom:6px">推定テーブル: '+esc(ST.tbl)+' <button type="button" data-clrtbl="1" style="font-size:9px;padding:2px 7px;border-radius:6px;background:rgba(255,255,255,.06);color:rgba(255,255,255,.5);margin-left:4px">クリア</button></div>';
  yamedoki().forEach(function(y){
   h+='<div style="padding:6px 9px;border-radius:9px;margin-top:5px;background:'+y.c+'14;border:1px solid '+y.c+'33">';
@@ -755,6 +778,7 @@ function canAdd(){if(!curEv)return false;var ev=EVMAP[curEv];
  /* エンディングは到達した事実だけでも記録価値がある（ボイスを見逃すことがある）ので必須にしない */
  if(ev.cat==="ending")return true;
  if(ev.cat==="enshutsu")return!!(curCat&&curOpt);
+ if(ev.cat==="strap")return!!curOpt;   /* どの乙女かを選ばないと記録に意味が無い */
  return true}
 
 function buildNote(e){var b=[],f;
@@ -768,6 +792,10 @@ function buildNote(e){var b=[],f;
  if(e.ev==="ending"){if(e.lamp)b.push("ランプ:"+esc(e.lamp));
   if(e.edc)b.push("キャラ:"+esc(e.edc))}
  if(e.scr){f=ATEND_SCR.filter(function(x){return x.id===e.scr})[0];if(f)b.push("終了画面:"+f.l+"("+f.s+")")}
+ /* 2026-11-07: ストラップイベント。⚠️ 存在しない10人を削除したので、過去ログの id が
+    STRAP に無いことがある。その場合は id をそのまま出す（無言で消さない）。 */
+ if(e.strap){f=STRAP.filter(function(x){return x.id===e.strap})[0];
+  b.push("ストラップ:"+(f?f.l:esc(e.strap)+"（現在は選択肢になし）"))}
  if(e.czout){f=CZ_OUT.filter(function(x){return x.id===e.czout})[0];if(f)b.push(f.l)}
  /* ⚠️ KYO_RES（強カワチャンスの勝敗）は 2026-10-19 に廃止。代わりに内部状態 KYO_ST を見る。
     剣聖チャンスは ATCZ_RES2（成功/失敗）なので、そちらも候補に入れる。 */
@@ -945,7 +973,9 @@ function rExp(){var ct=document.getElementById("ct"),E=estimate(),s=stats(),tG=t
  var cy=[];for(var c=0;c<6;c++)if(s.cycTry[c]>0)cy.push((c+1)+"周期 "+s.cycHit[c]+"/"+s.cycTry[c]);
  if(cy.length)t+="周期別当選: "+cy.join(" / ")+"\n";
  if(s.mai)t+="獲得枚数合計: "+s.mai+"枚\n";
- t+="\n【状態】"+((parseInt(ST.cyc)||1))+"周期目 / 周期内"+(parseInt(ST.cycG)||0)+"G / 巫女pt"+(ST.miko||"-")+" / ストラップ"+((STRAP.filter(function(x){return x.id===ST.strap})[0]||{l:"-"}).l)+(ST.tbl?" / 推定テーブル"+ST.tbl:"")+"\n";
+ /* ⚠️ 2026-11-07: 周期内G数・巫女ptの入力欄を撤去したので、出力からも外す
+    （欄が無いのに「周期内0G / 巫女pt-」と出ると、入れ忘れたのか欄が無いのか判らない）。 */
+ t+="\n【状態】"+((parseInt(ST.cyc)||1))+"周期目 / ストラップ"+((STRAP.filter(function(x){return x.id===ST.strap})[0]||{l:"-"}).l)+(ST.tbl?" / 推定テーブル"+ST.tbl:"")+"\n";
  if(ST.shop||ST.dai)t+="【台】"+ST.shop+" "+ST.dai+"\n";
  var _t=parseInt(ST.toshi)||0,_k=parseInt(ST.kaishu)||0;
  if(_t||_k)t+="【収支】投資"+_t+"円 / 回収"+_k+"円 / 差引"+((_k-_t>=0?"+":"")+(_k-_t))+"円\n";
@@ -980,6 +1010,12 @@ function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
  if(ev.cat==="ending"){if(curType){e.type=curType;bump(curType);}
   if(curLamp)e.lamp=curLamp;if(curEdc)e.edc=curEdc;}
  if(ev.cat==="enshutsu"){e.encat=curCat;e.enopt=curOpt;}
+ /* 2026-11-07: ストラップは「状態（ST.strap）」と「出現回数（示唆タブ）」の両方に効かせる。
+    ⚠️ 削除で巻き戻せるよう prev に strap も入れる（入れないと消しても滞在が残る）。 */
+ if(ev.cat==="strap"){e.strap=curOpt;
+  e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko,strap:ST.strap};
+  ST.strap=curOpt;
+  bump("s"+curOpt.charAt(0).toUpperCase()+curOpt.slice(1));}
  if(curNote)e.note=curNote;
  LOG.push(e);
  curEv=null;curG="";curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curNote="";curCat=null;curOpt=null;curCzout=null;curEdc=null;curLamp="";
@@ -1006,10 +1042,11 @@ document.getElementById("W").addEventListener("click",function(ev){var el=ev.tar
   if(el.dataset.a==="add"){addEntry();return}
   if(el.dataset.del!==undefined){var rm=LOG.splice(parseInt(el.dataset.del),1)[0];
    if(rm&&rm.ck)rm.ck.forEach(function(k){if(CC[k]>0)CC[k]--});
-   if(rm&&rm.prev){ST.tbl=rm.prev.tbl;ST.cyc=rm.prev.cyc;ST.cycG=rm.prev.cycG;if("miko" in rm.prev)ST.miko=rm.prev.miko;}
+   if(rm&&rm.prev){ST.tbl=rm.prev.tbl;ST.cyc=rm.prev.cyc;ST.cycG=rm.prev.cycG;if("miko" in rm.prev)ST.miko=rm.prev.miko;
+    if("strap" in rm.prev)ST.strap=rm.prev.strap;}   /* 2026-11-07: ストラップも巻き戻す */
    save();render();return}
   if(el.dataset.stcyc!==undefined){ST.cyc=+el.dataset.stcyc;save();render();return}
-  if(el.dataset.strap!==undefined){ST.strap=el.dataset.strap;save();render();return}
+  if(el.dataset.clrstrap!==undefined){ST.strap="";save();render();return}
   if(el.dataset.tbl!==undefined){ST.tblId=el.dataset.tbl;save();render();return}
   if(el.dataset.mode2!==undefined){ST.mode=el.dataset.mode2;save();render();return}
   if(el.dataset.reset!==undefined){ST.reset=(ST.reset==="1"?"0":"1");save();render();return}
