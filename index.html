@@ -175,6 +175,14 @@ var EVS=[
  {id:"strap",l:"乙女ストラップ",s:"モード滞在",c:"#f06292",cat:"strap"},
  {id:"ryoran",l:"繚乱の刻",s:"前兆",c:"#ffab40",cat:"ryoran"},
  {id:"atcz",l:"AT中CZ",s:"本能寺 他",c:"#ce93d8",cat:"atcz"},
+ /* 2026-11-16（ユーザー指示）: 「出陣ボーナスを独立させて、出陣ボーナス終了画面を記録できるよう」。
+    もともと ATCZ_T の中の1種別だったが、出陣ボーナスは**CZではなく疑似ボーナス（上乗せ特化20G）**で、
+    さらに**終了画面にスタンプ（可/吉/良/優/極）が出る＝設定域が一発で確定する**。
+    CZ の中に埋めていると終了画面の欄を出せず、スタンプを示唆タブで手入力するしかなかった。
+    → 独立イベントにして、終了画面を選べば示唆カウンタへ自動加算する（AT終了と同じ作り）。
+    ⚠️ ATCZ_T からは**消した**（同じものを2か所から記録できる形は、この案件で3回事故っている
+       ＝強カワチャンス/巫女pt/AT終了画面。片方だけ副作用があり、状態が静かに食い違う）。 */
+ {id:"shutsujin",l:"出陣ボーナス",s:"上乗せ特化20G",c:"#ffa726",cat:"shutsujin"},
  {id:"atend",l:"AT終了",c:"#80cbc4",cat:"atend"},
  /* エンディングは1日に0〜数回なのでイベント記録が適する（強カワチャンスとは逆＝あちらは
     1/36.8 で何十回も出るのでカウンタにした）。ボイスを選ぶと示唆カウンタへ自動加算される。 */
@@ -211,11 +219,13 @@ var MIKO_MODE=[{id:"normal",l:"通常(カンスケ以外)",s:"判別に使用"},
 var KYO_ST=[{id:"",l:"不明"},{id:"normal",l:"NORMAL"},{id:"high",l:"HIGH",s:"加算G優遇・50G以上濃厚"}];
 var ATCZ_T=[{id:"honnoji",l:"本能寺の変",s:"設1 1/114.8・勝率50%"},{id:"kessen",l:"決戦ノ刻",s:"設1 55%"},
  {id:"kensei_at",l:"剣聖チャンス(初当り時)",s:"設1 51%"},{id:"kensei_end",l:"剣聖チャンス(AT終了時)",s:"設1 70%"},
- {id:"kashin",l:"カシンバトル",s:"設1 50%"},{id:"ougai",l:"オウガイバトル",s:"設1 55%"},
- /* ⚠️ 2026-10-19 是正（5サイト突合）: 出陣ボーナスは**CZではなく上乗せ特化ゾーン（疑似ボーナス・20G）**。
-    本能寺の変/決戦ノ刻/カシンバトル/オウガイバトル等に**勝った「報酬」**として得るものなので、
-    それ自体に勝敗は無い。→ 勝敗を出さず、上乗せG数（または出陣した乙女）を記録する。 */
- {id:"shutsujin",l:"出陣ボーナス",s:"上乗せ特化20G・勝敗なし",nores:true}];
+ {id:"kashin",l:"カシンバトル",s:"設1 50%"},{id:"ougai",l:"オウガイバトル",s:"設1 55%"}];
+/* ⚠️ 2026-10-19 是正（5サイト突合）: 出陣ボーナスは**CZではなく上乗せ特化ゾーン（疑似ボーナス・20G）**。
+   本能寺の変/決戦ノ刻/カシンバトル/オウガイバトル等に**勝った「報酬」**として得るものなので、
+   それ自体に勝敗は無い。
+   ⚠️ 2026-11-16: ここから**独立イベント `shutsujin` に移した**（終了画面のスタンプを記録するため）。
+   過去ログには `ev:"atcz", type:"shutsujin"` が残っているので、表示だけ下の OLD_TYPE で拾う。 */
+var OLD_TYPE={shutsujin:"出陣ボーナス（旧: AT中CZ内）"};
 var ATCZ_RES=[{id:"win",l:"勝利"},{id:"lose",l:"敗北"}];
 /* 剣聖チャンスは上位AT突入をかけた分岐なので「成功/失敗」。AT中CZではなくAT突入前 */
 var ATCZ_RES2=[{id:"win",l:"成功（上位ATへ）"},{id:"lose",l:"失敗（通常ATへ）"}];
@@ -260,6 +270,21 @@ var ENSHUTSU=[
 /* ===== メモ専用の要素（設定差はないが、やめどき/追い方の判断に必要） ===== */
 var RYO_T=[{id:"enbu",l:"繚乱の刻・焔舞",s:"通常前兆"},{id:"shien",l:"繚乱の刻・紫炎",s:"AT期待度61.4%(設1)"}];
 var RYO_RES=[{id:"at",l:"AT当選"},{id:"lose",l:"ハズレ"}];
+/* ボーナス終了画面のスタンプ（戦国乙女ボーナス／出陣ボーナス 共通）。
+   ★ 本機で唯一「一発で設定域が確定する」要素なので、記録から示唆カウンタへ直結させる。
+   `k` は示唆タブのカウンタ ID（`CNTS` の stamp セクションと同じもの）。
+   ⚠️ **ここの `k` は `CNTS` に実在する ID でなければ無言で落ちる**（`bump()` は `k in CC` で弾く）。
+      `tests/test_otome5_stamp.py` が両者の一致を見張る。 */
+var BNS_STAMP=[
+ {id:"none",l:"なし",s:"デフォルト",k:""},
+ {id:"ka",l:"可",s:"設2以上",k:"sKa"},
+ {id:"kichi",l:"吉",s:"設3以上",k:"sKichi"},
+ {id:"ryo",l:"良",s:"設4以上",k:"sRyo"},
+ {id:"yu",l:"優",s:"設5以上",k:"sYu"},
+ {id:"kiwa",l:"極",s:"設6",k:"sKiwa"},
+ {id:"chara",l:"キャラ12種",s:"示唆は調査中",k:""},
+ {id:"miru",l:"見ていない",s:"カウントしない",k:""}];
+
 var ATEND_SCR=[
  {id:"nobunaga",l:"ノブナガ",s:"デフォルト",tbl:""},
  {id:"b1",l:"マサムネ/ヒデヨシ",s:"通常B以上示唆",tbl:"通常B以上?"},
@@ -646,7 +671,11 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
    h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:6px;line-height:1.5">設定1の周期別AT期待度は1・2周期目 約40%、3〜5周期目 30%以上、6周期目で天井。高設定ほど早い周期で当選しやすいとされるため、何周期目かは必ず記録を。</div></div>';}
   /* 強カワチャンスの入力欄は 2026-10-21 に撤去（カウンタ kyoN / kyoHigh に一本化）。
      KYO_ST の定義は**過去ログの表示に使うので残してある**（e.res のラベル解決）。 */
-  if(ev.cat==="senbo"){h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin:8px 0;line-height:1.6;padding:9px 10px;border-radius:11px;background:rgba(255,213,79,.06);border:1px solid rgba(255,213,79,.18)">戦国乙女ボーナスは<b style="color:#ffd54f">本機最大級の設定差（約4倍）</b>。設1で1/21206.7、設6で1/5502.7。引けた時点で強カワラッシュ濃厚です。記録すると示唆タブのカウンターにも自動加算されます。</div>';}
+  if(ev.cat==="senbo"){h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin:8px 0;line-height:1.6;padding:9px 10px;border-radius:11px;background:rgba(255,213,79,.06);border:1px solid rgba(255,213,79,.18)">戦国乙女ボーナスは<b style="color:#ffd54f">本機最大級の設定差（約4倍）</b>。設1で1/21206.7、設6で1/5502.7。引けた時点で強カワラッシュ濃厚です。記録すると示唆タブのカウンターにも自動加算されます。</div>';
+   /* 2026-11-16: スタンプは「戦国乙女ボーナス**または**出陣ボーナス」の終了画面に出る
+      （示唆タブの i_stamp の説明文がそう書いてある）。片方だけ自動化すると、
+      もう片方を手入力し忘れて**確定要素を落とす**ので、両方に同じ欄を置く。 */
+   h+=stampRow();}
   if(ev.cat==="strap"){
    h+='<div class="flow"><div class="flow-t">滞在している乙女（全6種）</div><div class="dt-r">';
    STRAP.filter(function(m){return m.id}).forEach(function(m){
@@ -669,18 +698,20 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
    if(nx)h+='<div style="padding:8px 10px;border-radius:10px;background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.3);font-size:11px;color:#ffab40;font-weight:700;margin:6px 0">'+nx+'</div>';
    h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5"><b style="color:#ffab40">周期はここで進みます</b>（巫女ポイントとは別系統）。紫炎はAT期待度61.4%(設定1)で、3周期目以降の突入率に設定差があるとされます。ただし他設定の数値が未判明のため推測には加算せず、突入率と勝率の実測を示唆タブに表示します。紫炎からハズレた場合は周期テーブルの手掛かりになります。</div>';}
   if(ev.cat==="atcz"){h+=detRow("種別",ATCZ_T,"type",curType);
-   var _t=ATCZ_T.filter(function(x){return x.id===curType})[0];
-   if(_t&&_t.nores){
-    h+='<div class="dt"><div class="dt-t">上乗せG数 / 出陣した乙女（任意）</div>'
-     +'<input class="dt-f" id="iMai" value="'+esc(curMai)+'" placeholder="例: 120G / 赤乙女"></div>';
-   }else if(curType){h+=detRow("結果",atczRes(curType),"res",curRes);}
-   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:-4px;line-height:1.5">いずれも設定1の数値のみ判明のため、推測には加算せず実測の勝率だけを表示します。</div>';}
+   if(curType){h+=detRow("結果",atczRes(curType),"res",curRes);}
+   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:-4px;line-height:1.5">いずれも設定1の数値のみ判明のため、推測には加算せず実測の勝率だけを表示します。<b style="color:#ffa726">出陣ボーナスは独立イベント</b>になりました（終了画面を記録するため）。</div>';}
+  /* 2026-11-16: 出陣ボーナス（独立イベント）。上乗せの記録＋**終了画面のスタンプ**。 */
+  if(ev.cat==="shutsujin"){
+   h+='<div class="dt"><div class="dt-t">上乗せG数 / 出陣した乙女（任意）</div>'
+    +'<input class="dt-f" id="iMai" value="'+esc(curMai)+'" placeholder="例: 120G / 赤乙女"></div>';
+   h+=stampRow();
+   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:-4px;line-height:1.5">出陣ボーナスは上乗せ特化20G（疑似ボーナス）で勝敗はありません。<b style="color:#ffd54f">終了画面のスタンプは一発で設定域が確定</b>する唯一の要素なので、終了時は必ず画面を見てください。選ぶと示唆タブへ自動加算されます。</div>';}
   if(ev.cat==="atend"){
    h+='<div class="dt"><div class="dt-t">AT終了画面（周期テーブル示唆＝メモ）</div><div class="dt-r">';
    ATEND_SCR.forEach(function(o){h+='<button type="button" class="dt-b'+(curOpt===o.id?' s':'')+'" data-enopt="'+o.id+'">'+o.l+'<small style="display:block;font-size:8px;opacity:.55">'+o.s+'</small></button>'});
    h+='</div></div>';
    h+='<div class="dt"><div class="dt-t">獲得枚数（記録用）</div><input type="number" inputmode="numeric" class="dt-f" id="iMai" value="'+esc(curMai)+'" placeholder="枚数"></div>';
-   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);line-height:1.5">終了画面・スタンプ・枚数示唆は<b style="color:#ff80ab">示唆タブ</b>でカウントしてください。ここは流れの記録用です。</div>';}
+   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);line-height:1.5">AT終了画面の「矛盾で確定」と枚数示唆は<b style="color:#ff80ab">示唆タブ</b>でカウントしてください。ここは流れの記録用です。<b style="color:#ffd54f">ボーナス終了画面のスタンプ</b>は戦国乙女ボーナス／出陣ボーナスの記録画面にあり、そちらは自動加算されます。</div>';}
   if(ev.cat==="enshutsu"){
    h+='<div class="flow"><div class="flow-t">① 種類</div><div class="dt-r">';
    ENSHUTSU.forEach(function(g){h+='<button type="button" class="dt-b'+(curCat===g.id?' s':'')+'" data-encat="'+g.id+'">'+g.l+'</button>'});
@@ -773,25 +804,51 @@ function rMemo(){var ct=document.getElementById("ct"),h='<div class="rec">';
 function canAdd(){if(!curEv)return false;var ev=EVMAP[curEv];
  if(ev.cat==="at")return!!(curKik&&curCyc);
  if(ev.cat==="ryoran")return!!(curType&&curRes);
- if(ev.cat==="atcz"){var t=ATCZ_T.filter(function(x){return x.id===curType})[0];
-  return !!(curType&&(t&&t.nores?true:curRes));}
+ if(ev.cat==="atcz")return !!(curType&&curRes);   /* 2026-11-16: nores の出陣は独立イベントへ移した */
+ /* 出陣ボーナスは「引いた事実」だけでも記録価値がある（終了画面を見逃すことがある）ので
+    スタンプは必須にしない。⚠️ 必須にすると「見ていない」を選ばせる手間で記録自体が止まる。 */
+ if(ev.cat==="shutsujin")return true;
  /* エンディングは到達した事実だけでも記録価値がある（ボイスを見逃すことがある）ので必須にしない */
  if(ev.cat==="ending")return true;
  if(ev.cat==="enshutsu")return!!(curCat&&curOpt);
  if(ev.cat==="strap")return!!curOpt;   /* どの乙女かを選ばないと記録に意味が無い */
  return true}
 
+/* ボーナス終了画面（スタンプ）の選択欄。戦国乙女ボーナスと出陣ボーナスで**同じ実装**を使う。
+   ⚠️ 2か所に同じ UI を書き写さないこと。この案件では「同じものを2か所から記録できる形」で
+      3回事故っている（強カワチャンス／巫女pt／AT終了画面）。 */
+/* 選ばれたスタンプを記録に残し、示唆タブのカウンタへ加算する。
+   ⚠️ `bump` は addEntry の中の閉包（e.ck に積んで**削除時に戻す**ため）。必ず渡すこと。
+   ⚠️ `k` が空のもの（なし／キャラ12種／見ていない）は**加算しない**。記録だけ残す。 */
+function addStamp(e,bump){
+ if(!curOpt)return;
+ var o=BNS_STAMP.filter(function(x){return x.id===curOpt})[0];
+ if(!o)return;
+ e.stamp=o.id;
+ if(o.k)bump(o.k)}
+
+function stampRow(){
+ var h='<div class="dt"><div class="dt-t">🏯 ボーナス終了画面（スタンプ＝設定域が確定）</div><div class="dt-r">';
+ BNS_STAMP.forEach(function(o){h+='<button type="button" class="dt-b'+(curOpt===o.id?' s':'')
+  +'" data-enopt="'+o.id+'">'+o.l+(o.s?'<small style="display:block;font-size:8px;opacity:.55">'+o.s+'</small>':'')+'</button>'});
+ return h+'</div></div>'}
+
 function buildNote(e){var b=[],f;
  if(e.kik){f=AT_KIK.filter(function(x){return x.id===e.kik})[0];if(f)b.push(f.l)}
  if(e.cyc)b.push(e.cyc+"周期目");
  if(e.mode){f=MIKO_MODE.filter(function(x){return x.id===e.mode})[0];if(f)b.push(f.l)}
  if(e.type){f=ATCZ_T.concat(RYO_T,END_VOICE).filter(function(x){return x.id===e.type})[0];
-  if(f)b.push(f.l+(f.h?"("+f.h+")":""))}
+  /* ⚠️ 2026-11-16: 出陣ボーナスを ATCZ_T から外したので、過去ログの type が見つからなくなる。
+     無言で消さず OLD_TYPE で拾う（ストラップで同じ対処をしている）。 */
+  b.push(f?(f.l+(f.h?"("+f.h+")":"")):(OLD_TYPE[e.type]||esc(e.type)))}
  /* エンディングのランプ／キャラ。⚠️ END_LAMP は汎用 e.res の候補に**入れていない**ので
     （下の MIKO_RES.concat(...) を見ること）、ここで出さないと表示が消える。 */
  if(e.ev==="ending"){if(e.lamp)b.push("ランプ:"+esc(e.lamp));
   if(e.edc)b.push("キャラ:"+esc(e.edc))}
  if(e.scr){f=ATEND_SCR.filter(function(x){return x.id===e.scr})[0];if(f)b.push("終了画面:"+f.l+"("+f.s+")")}
+ /* 2026-11-16: ボーナス終了画面のスタンプ（戦国乙女ボーナス／出陣ボーナス） */
+ if(e.stamp){f=BNS_STAMP.filter(function(x){return x.id===e.stamp})[0];
+  b.push("終了画面:"+(f?(f.l+"スタンプ"+(f.s?"("+f.s+")":"")):esc(e.stamp)))}
  /* 2026-11-07: ストラップイベント。⚠️ 存在しない10人を削除したので、過去ログの id が
     STRAP に無いことがある。その場合は id をそのまま出す（無言で消さない）。 */
  if(e.strap){f=STRAP.filter(function(x){return x.id===e.strap})[0];
@@ -850,7 +907,7 @@ function rCnt(){var ct=document.getElementById("ct"),h='<div class="cnt">',tG=to
      h+='<br>高設定ほど早い周期で当選しやすいとされますが、設定1以外の数値が未判明のため推測には加算していません。</div></div>';}}
    h+='</div>';}
   h+='</div>';}
- h+='<div style="font-size:10px;color:rgba(255,255,255,.3);padding:8px 4px;line-height:1.6">※記録タブで<b>戦国乙女ボーナス・AT中CZ・繚乱の刻・エンディング（ボイス）</b>を記録すると、ここへ自動で加算されます。<b>巫女pt0pt到達・強カワチャンス</b>はイベント記録を廃止したので、このタブの ＋/− で直接数えてください（前者は2026-10-19、後者は2026-10-21 に一本化）。終了画面・スタンプ・獲得枚数表示・隠れ凪も手動カウントです。</div>';
+ h+='<div style="font-size:10px;color:rgba(255,255,255,.3);padding:8px 4px;line-height:1.6">※記録タブで<b>戦国乙女ボーナス・出陣ボーナス・AT中CZ・繚乱の刻・エンディング（ボイス）</b>を記録すると、ここへ自動で加算されます。<b style="color:#ffd54f">🏯 ボーナス終了画面（スタンプ）は 2026-11-16 から自動</b>になりました（戦国乙女ボーナス／出陣ボーナスの記録画面で選ぶだけ。手で数える必要はありません）。<b>巫女pt0pt到達・強カワチャンス</b>はイベント記録を廃止したので、このタブの ＋/− で直接数えてください（前者は2026-10-19、後者は2026-10-21 に一本化）。AT終了画面・獲得枚数表示・隠れ凪は手動カウントです。</div>';
  h+='</div>';ct.innerHTML=h}
 
 /* ===== 解説 ===== */
@@ -994,7 +1051,11 @@ function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
   e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
   ST.cyc=1;ST.cycG="";ST.miko="";}
  /* ⚠️ 2026-10-19 廃止: 巫女pt 0pt到達のイベント記録。カウンタ mikoT/mikoH に一本化した */
- if(ev.cat==="senbo"){bump("senboN");}
+ if(ev.cat==="senbo"){bump("senboN");addStamp(e,bump);}
+ /* 2026-11-16: 出陣ボーナス（独立イベント）。上乗せの記録＋終了画面のスタンプ。
+    ⚠️ カウンタは必ず bump() を通す。直接 CC[k]++ すると e.ck に積まれず、
+       記録を消しても示唆タブのカウントが戻らない。 */
+ if(ev.cat==="shutsujin"){if(curMai)e.mai=curMai;addStamp(e,bump);}
  if(ev.cat==="atcz"){e.type=curType;if(curRes)e.res=curRes;if(curMai)e.mai=curMai;
   if(curType==="honnoji"){bump("honT");if(curRes==="win")bump("honW");}
   if(curType==="kessen"){bump("kesT");if(curRes==="win")bump("kesW");}}
