@@ -205,11 +205,32 @@ var EV_RETIRED={kyokawa:"強カワチャンス（記録方式を変更）"};
    - **戦国乙女ボーナスは契機ではなく「AT初当り時の一部で突入する30Gの開始形態」** → 削除
      （AT初当たりの分子からは estimate() が senboN ぶんを除いている。そちらは正しい）
    - 実在するのに無かった **フリーズ / リールロック2段階** を追加 */
+/* ⚠️ 周期別当選率(`stats()` の cycTry/cycHit)に数えるのは **cyc / tenjou / modoshi だけ**。
+   乙女アタック・リールロック2段階・フリーズ・紫炎(自力)は**周期の抽選ではない**ので
+   分母にも分子にも入れない（入れると周期別当選率が薄まる）。
+   2026-11-21（ユーザー指示）: 「繚乱の刻・紫炎（自力）を追加。かつリールロック2段階や
+   乙女アタックと同様に1周期当選は数えないこと」→ 白名簿に**足さない**ことで満たしている。 */
 var AT_KIK=[{id:"cyc",l:"周期到達"},{id:"otome",l:"乙女アタック"},
  {id:"tenjou",l:"天井(999G/6周期)"},{id:"modoshi",l:"引き戻し(百花繚乱チャンス)"},
+ {id:"shien",l:"繚乱の刻・紫炎(自力)",s:"周期当選には数えない"},
  {id:"lock2",l:"リールロック2段階"},{id:"freeze",l:"夢幻の如くフリーズ"},{id:"fumei",l:"不明"}];
+/* 2026-11-21（ユーザー指示）: AT当選時に上位ATが当たることがあるので記録する。
+   上位AT＝**真・強カワラッシュ**（純増 約4.8枚/G・初期100G＋α）。突入は上位CZ「剣聖チャンス」の
+   成功が基本で、AT初当り時に直接入るルートもあるとされる（1撃/なな徹/moe-slotpachi）。
+   ⚠️ **設定示唆ではない**ので示唆カウンタには繋がない（`MASKS`/`QUASI` に入れない）。
+   出現率の設定差は公表されていないため、回数を数えるだけ。 */
+var AT_RANK=[{id:"",l:"通常AT",s:"強カワラッシュ"},
+ {id:"shin",l:"上位AT",s:"真・強カワラッシュ"},
+ {id:"kensei",l:"剣聖チャンス経由で上位",s:"上位CZ成功"}];
 var MIKO_RES=[{id:"hit",l:"乙女アタック当選"},{id:"miss",l:"非当選"}];
 var CZ_OUT=[{id:"at",l:"→ AT当選"},{id:"lose",l:"→ 失敗"}];
+/* 2026-11-21（ユーザー指示）: 本能寺の変（AT中CZ）の当選契機。
+   ⚠️ **レア役と規定G数の両方**から当選する（1撃・altema・note で一致）。
+      規定G数側は「NEXT」表示のG数に到達したときの抽選で、初回周期20G到達時は39.1%という
+      数値もある＝**何Gだったかに意味がある**ので数値を残せるようにしてある。
+   ⚠️ 設定示唆ではない（設定1の数値しか公表が無い）ので示唆カウンタには繋がない。 */
+var CZ_KIK=[{id:"rare",l:"レア役"},{id:"game",l:"G数（NEXT到達）",s:"何Gかを入力"},
+ {id:"other",l:"その他/不明",s:"ストック放出・ゴエモン依頼ptなど"}];
 var MIKO_MODE=[{id:"normal",l:"通常(カンスケ以外)",s:"判別に使用"},{id:"kansuke",l:"カンスケ滞在",s:"判別から除外"},
  {id:"lock",l:"リールロック2段階契機",s:"判別から除外"}];
 /* ⚠️ 2026-10-19 是正（5サイト突合）: 強カワチャンスに「AT当選/非当選」は**存在しない**。
@@ -251,8 +272,20 @@ var ENSHUTSU=[
    {id:"kehai",l:"良い気配が近づいてるよ！（緑）",s:"規定周期到達のチャンス?"},
    {id:"kicchou",l:"吉兆だぁ！（赤）",s:"規定周期到達の大チャンス? 続行検討"}]},
  {id:"gumi",l:"ぐみ出現",opts:[{id:"out",l:"ぐみ出現",s:"前兆開始の合図"}]},
- {id:"eye",l:"アイキャッチ（ステージチェンジ）",opts:[
-   {id:"def",l:"デフォルト"},{id:"chance",l:"チャンスパターン",s:"周期テーブル示唆"}]},
+ /* 2026-11-21（ユーザー指示「信長・かんすけを追加。ほかにも無いか確認してから」＋なな徹/1撃 突合）:
+    もとは「デフォルト / チャンスパターン」の2択で、**どのアイキャッチを見たかが残らなかった**。
+    実際は**全7種**で、示唆しているのは設定ではなく**周期モード**（＝規定G数の深さ）。
+    ⚠️ **設定示唆ではない**ので示唆カウンタには繋がない。やめどき・追い方の判断用。
+    ⚠️ 「ノブナガ」は2か所に出るので要注意: 単独の「ノブナガ」はチャンス濃厚だが、
+       「ヒデヨシ＆ノブナガ」は**デフォルト**。取り違えると逆の判断になる。 */
+ {id:"eye",l:"アイキャッチ（ステージチェンジ／周期モード示唆）",opts:[
+   {id:"hide_nobu",l:"ヒデヨシ＆ノブナガ",s:"デフォルト（上位モードを否定はしない）"},
+   {id:"yoshi_ieya",l:"ヨシモト＆イエヤス",s:"周期モードB以上（期待度59%）"},
+   {id:"ken_shin",l:"ケンシン＆シンゲン",s:"モードA否定・C以上（期待度55%）"},
+   {id:"kansuke",l:"カンスケ",s:"モードC以上濃厚 or 50G以内に規定G数到達"},
+   {id:"nobunaga",l:"ノブナガ（単独）",s:"周期モード「チャンス」濃厚＝50Gで到達"},
+   {id:"otome_red",l:"乙女集合（赤）",s:"AT濃厚＋残り50G以内に規定G数到達"},
+   {id:"otome_gold",l:"乙女集合（金）",s:"AT濃厚＋追加の恩恵に期待（最上位）"}]},
  /* ⚠️ 2026-10-21 削除: ここに「乙女ストラップモード」の3択があり、状態タブの `ST.strap`
     （独立項目・STRAP 配列）と**同じものを二重に持っていた**。しかも実害がある——
     状態タブから選ぶと yamedoki() の警告とメモ出力に反映されるのに、こちらから入れると
@@ -276,14 +309,59 @@ var RYO_RES=[{id:"at",l:"AT当選"},{id:"lose",l:"ハズレ"}];
    ⚠️ **ここの `k` は `CNTS` に実在する ID でなければ無言で落ちる**（`bump()` は `k in CC` で弾く）。
       `tests/test_otome5_stamp.py` が両者の一致を見張る。 */
 var BNS_STAMP=[
- {id:"none",l:"なし",s:"デフォルト",k:""},
- {id:"ka",l:"可",s:"設2以上",k:"sKa"},
- {id:"kichi",l:"吉",s:"設3以上",k:"sKichi"},
- {id:"ryo",l:"良",s:"設4以上",k:"sRyo"},
- {id:"yu",l:"優",s:"設5以上",k:"sYu"},
- {id:"kiwa",l:"極",s:"設6",k:"sKiwa"},
- {id:"chara",l:"キャラ12種",s:"示唆は調査中",k:""},
+ {id:"ka",l:"可",s:"設2以上",k:"sKa",sp:1},
+ {id:"kichi",l:"吉",s:"設3以上",k:"sKichi",sp:1},
+ {id:"ryo",l:"良",s:"設4以上",k:"sRyo",sp:1},
+ {id:"yu",l:"優",s:"設5以上",k:"sYu",sp:1},
+ {id:"kiwa",l:"極",s:"設6",k:"sKiwa",sp:1},
+ /* 2026-11-21（ユーザー指示 ＋ 4サイト突合）: ボーナス終了画面は **8通り**。
+    ⚠️⚠️ **初版は「同じ1画面を2つ数える」作りだった**（ユーザー指摘）。
+       スタンプは**キャラ絵の上に乗る**もので、「ゴエモン」と「吉」は別物ではない。
+       さらに**スタンプなしの画面は3種類で、1画面に4人まとめて出る**ので、
+       初版のように「ノブナガ」「ゴエモン」を別ボタンにすると**同じ画面①が2つの選択肢**になる。
+       → **1画面＝1選択肢**に作り直した（スタンプなし3 ＋ スタンプ5 ＝ 8）。
+    出所（突合）:
+      - 必勝本: スタンプなしは3画面で、①マサムネ/ノブナガ/ヒデヨシ/ゴエモン
+        ②カンスケ/イエヤス/ヨシモト/シンゲン ③ソウリン/ドウセツ/モトナリ/モトチカ
+      - ユーザー（実戦）: 一番上=デフォルト / 2番目=デフォルト2 / 3番目=高設定弱
+      - なな徹: 「戦国乙女ボーナス」**または**「出陣ボーナス」の終了画面で設定示唆
+      - DMMぱちタウン: ボーナス終了画面は出陣ボーナス**と**戦国乙女ボーナスの終了時に出る
+    ⚠️ **①②③の差は5ではまだ解析が出ていない**（2026-11-21 ユーザー確認）。
+       必勝本は3つとも「デフォルト」と書き、ユーザーの情報源だけが段を付けている。
+       → 設定番号は割り当てず MASKS/QUASI にも入れず、**回数を数えるだけ**
+         （乙女ストラップ strapN と同じ扱い）。
+       ⚠️ 出玉データから設定番号を逆算して埋めるのは**禁止**（循環する）。
+
+    ★ **戦国乙女4 の表が参考になる**（2026-11-21 ユーザー指摘 → DMMぱちタウンで確認）。
+      4では**設定示唆を持つのは AT終了画面**で、そこに**同じ可吉良優極スタンプ＋4人組3種**がある
+      （5では同じ仕組みが**ボーナス終了画面**に移っている）。4の AT終了画面:
+        ヒデヨシ＆カンスケ＆シンゲン＆ノブナガ … **設定3・5示唆**
+        ヨシモト＆ケンシン＆ウジマサ＆イエヤス … **設定2・4示唆**
+        モトチカ＆ソウリン＆ドウセツ＆モトナリ … **高設定示唆[弱]**
+          （選択率 設1 33.3% / 設2 33.3% / 設3 36.7% / 設4 36.7% / 設5 40.0% / 設6 40.0%）
+      ⇒ **③だけが4と顔ぶれ完全一致**＝ユーザーの「高設定弱」と4が一致する。
+      ⇒ **①②は組み替えられている**（5の②＝4の①から カンスケ・シンゲン、4の②から イエヤス・ヨシモト。
+         5の①の マサムネ・ゴエモン は4の表に無い）。だから4の「奇数/偶数示唆」は**持ち込めない**。
+      ⚠️ それでも **4の数値を5に入れてはいけない**（別機種）。4の③ですら 33.3%→40.0% で
+         設定1と6の比は約1.2倍＝**単体ではほとんど情報が無い**。だから MASKS/QUASI には入れない。
+         ここに書くのは「5の解析が出たとき、どこを疑って見ればよいか」の覚書。
+    ⚠️ 2026-11-21 に「キャラは出陣ボーナス限定」とゲートを入れたが、**上の2サイトで
+       終了画面は両方のボーナスに出ることが確認できた**ので撤去した（スタンプと同じ扱い）。 */
+ {id:"d1",l:"スタンプなし①",s:"マサムネ/ノブナガ/ヒデヨシ/ゴエモン",k:"bsD1"},
+ {id:"d2",l:"スタンプなし②",s:"カンスケ/イエヤス/ヨシモト/シンゲン",k:"bsD2"},
+ {id:"d3",l:"スタンプなし③ ★",s:"ソウリン/ドウセツ/モトナリ/モトチカ（4では高設定弱の顔ぶれ）",k:"bsD3"},
+ /* ⚠️ 「スタンプは無かったが①②③のどれかは見ていない」用。①②③と**排他**で、
+    これ自体は4つ目の画面ではない。数えると①②③の分布が濁るのでカウンタは付けない。 */
+ {id:"none",l:"スタンプなし（絵柄は未確認）",s:"どれか分からない時だけ",k:""},
  {id:"miru",l:"見ていない",s:"カウントしない",k:""}];
+/* 退役した終了画面 id → 表示名。⚠️ これが無いと、過去に記録した履歴が生の id のまま出る。
+   ユーザーのデータは消さない（OLD_TYPE / EV_RETIRED と同じ対処）。 */
+var OLD_STAMP={
+ chara:"キャラ12種（記録方式を変更）",
+ cNobunaga:"ノブナガ（→ スタンプなし①）", cGoemon:"ゴエモン（→ スタンプなし①）",
+ cIeyasu:"イエヤス（→ スタンプなし②）",  cKansuke:"カンスケ（→ スタンプなし②）",
+ cMotonari:"モトナリ（→ スタンプなし③）", cSorin:"ソウリン（→ スタンプなし③）",
+ cOther:"その他のキャラ（記録方式を変更）"};
 
 var ATEND_SCR=[
  {id:"nobunaga",l:"ノブナガ",s:"デフォルト",tbl:""},
@@ -398,6 +476,21 @@ var CNTS=[
    {k:"sKa",l:"可スタンプ",h:"設2以上"},{k:"sKichi",l:"吉スタンプ",h:"設3以上"},
    {k:"sRyo",l:"良スタンプ",h:"設4以上"},{k:"sYu",l:"優スタンプ",h:"設5以上"},
    {k:"sKiwa",l:"極スタンプ",h:"設6",hi:1}]},
+ /* 2026-11-21（ユーザー指示 ＋ 4サイト突合）: ボーナス終了画面の**スタンプなし3種**。
+    ⚠️ ①②③の差は**確定していない**（必勝本は3つとも「デフォルト」、ユーザーの情報源だけが
+       「デフォルト2 / 高設定弱」と段を付ける）。どちらとも決められないので
+       h: を付けず MASKS/QUASI にも入れない＝**回数を数えるだけ**。
+       数が貯まれば②③の出方が偏るかどうかを自分のデータで見られる。 */
+ {id:"bsdef",t:"🏯 ボーナス終了画面・スタンプなし（5では解析未出／非加算）",items:[
+   {k:"bsD1",l:"スタンプなし①",s:"マサムネ/ノブナガ/ヒデヨシ/ゴエモン ＝デフォルト。4では顔ぶれが違う（ノブナガ/ヒデヨシは4の設定3・5組、マサムネ/ゴエモンは4の表に無い）"},
+   {k:"bsD2",l:"スタンプなし②",s:"カンスケ/イエヤス/ヨシモト/シンゲン ＝ユーザー情報源はデフォルト2。4では奇数組と偶数組から2人ずつ混ざっている＝4からは決められない"},
+   {k:"bsD3",l:"スタンプなし③",s:"ソウリン/ドウセツ/モトナリ/モトチカ ＝ユーザー情報源は高設定弱。★4のAT終了画面と顔ぶれ完全一致で、そこでは「高設定示唆[弱]」（選択率 設1 33.3%→設6 40.0%＝約1.2倍）。ここが一番見る価値がある"}]},
+ /* 2026-11-21（ユーザー指示）: 周期モード「チャンス」の回数と、周期到達そのものの回数。
+    ⚠️ チャンス＝50Gで周期到達する周期モード（なな徹）。**設定示唆ではなく周期モードの話**
+       なので MASKS/QUASI には入れない。到達回数と並べて「チャンスに入った割合」を見るためのもの。 */
+ {id:"cycle",t:"🔁 周期到達とチャンスモード（周期の話・設定示唆ではない）",items:[
+   {k:"cycT",l:"周期到達 回数",s:"規定G数に到達した回数（当否は問わない）"},
+   {k:"cycChance",l:"↑うち チャンスモードだった",s:"50Gで到達する周期モード。アイキャッチ「ノブナガ」が濃厚示唆"}]},
  {id:"atend",t:"🖼️ AT終了画面（矛盾で確定）",items:[
    {k:"aGold",l:"乙女集合(金背景)",h:"設2以上濃厚",s:"出現時点で確定。天国濃厚も兼ねる"},
    {k:"aRed",l:"乙女集合(赤背景)＋天国否定",h:"設4以上濃厚",s:"次回が天国でなかったと確認できた時のみカウント"},
@@ -441,7 +534,7 @@ var ALLCK=[];CNTS.forEach(function(s){s.items.forEach(function(i){ALLCK.push(i.k
 /* 示唆タブの並び。⚠️ 2026-11-07（ユーザー指示）: **よく数えるものを上に**
    ＝①強カワチャンス ②巫女0pt ③乙女ストラップ出現回数。以降は従来順。
    ⚠️ ここに無い id のセクションは**画面に出ない**ので、CNTS に足したら必ずここにも足すこと。 */
-var CNT_ORDER=["kyokawa","miko","strapN","senbo","stamp","atend","ending","conf","nagi","ref"];
+var CNT_ORDER=["kyokawa","miko","strapN","senbo","stamp","bsdef","cycle","atend","ending","conf","nagi","ref"];
 var CNTMAP={};CNTS.forEach(function(s){CNTMAP[s.id]=s});
 /* ハード制約（解析で確定）と準確定（従来機種参考）の対応 */
 var MASKS={sKa:2,sKichi:3,sRyo:4,sYu:5,sKiwa:6,aGold:2,aRed:4,aTblA:4};
@@ -453,7 +546,10 @@ var LOG=[],CC={},COL={},TAB="rec",HAMARI="",USE_Q=true;
 /* ⚠️ 2026-10-21: 既定値が "other"（廃止した3択時代の値）のままだと、**初回起動時に
    状態タブのどのボタンも選択表示にならない**（load() の移行は保存データにしか効かない）。 */
 var ST={cyc:1,cycG:"",miko:"",strap:"",tbl:"",tblId:"",mode:"",shop:"",dai:"",toshi:"",kaishu:"",memo:"",reset:"0"};
-var curEv=null,curG="",curKik=null,curCyc=null,curRes=null,curMode=null,curType=null,curMai="",curNote="",curCat=null,curOpt=null,curCzout=null,curEdc=null,curLamp="";
+/* 2026-11-21 追加: curRank=入ったAT（上位か） / curCzk=本能寺の当選契機 / curCzg=その到達G数。
+   ⚠️ **3か所すべてに足すこと**（宣言／記録後のクリア／イベント切替時のクリア）。
+      1か所でも漏れると、前の記録の選択が次のイベントに**残って混ざる**。 */
+var curEv=null,curG="",curKik=null,curCyc=null,curRes=null,curMode=null,curType=null,curMai="",curNote="",curCat=null,curOpt=null,curCzout=null,curEdc=null,curLamp="",curRank=null,curCzk=null,curCzg="";
 var rstP=false,rstT=null,SK="otome5_v1";
 
 function initC(){ALLCK.forEach(function(k){CC[k]=0});CNTS.forEach(function(s){COL[s.id]=(s.id==="ref"||s.id==="nagi")})}
@@ -668,7 +764,12 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
     +'上の<b>ハマりG</b>欄の値を使います → <b style="font-size:15px">'+(parseInt(HAMARI)||0)+'G</b>'
     +'<div style="font-size:9px;font-weight:400;color:rgba(255,255,255,.4);margin-top:3px">'
     +'記録すると通常総Gに加算され、ハマりG欄は0に戻ります</div></div>';
-   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:6px;line-height:1.5">設定1の周期別AT期待度は1・2周期目 約40%、3〜5周期目 30%以上、6周期目で天井。高設定ほど早い周期で当選しやすいとされるため、何周期目かは必ず記録を。</div></div>';}
+   /* 2026-11-21（ユーザー指示）: AT当選時に上位ATが当たることがあるので記録する。 */
+   h+='<div class="flow-t" style="margin-top:8px">④ 入ったAT（上位なら選ぶ）</div><div class="dt-r">';
+   AT_RANK.forEach(function(r){h+='<button type="button" class="dt-b'+(curRank===r.id?' s':'')
+    +'" data-rank="'+r.id+'">'+r.l+(r.s?'<small style="display:block;font-size:8px;opacity:.55">'+r.s+'</small>':'')+'</button>'});
+   h+='</div>';
+   h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:6px;line-height:1.5">設定1の周期別AT期待度は1・2周期目 約40%、3〜5周期目 30%以上、6周期目で天井。高設定ほど早い周期で当選しやすいとされるため、何周期目かは必ず記録を。<br>⚠️ 乙女アタック・リールロック2段階・フリーズ・紫炎(自力)は<b>周期の抽選ではない</b>ので、周期別当選率の分母にも分子にも入りません。</div></div>';}
   /* 強カワチャンスの入力欄は 2026-10-21 に撤去（カウンタ kyoN / kyoHigh に一本化）。
      KYO_ST の定義は**過去ログの表示に使うので残してある**（e.res のラベル解決）。 */
   if(ev.cat==="senbo"){h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin:8px 0;line-height:1.6;padding:9px 10px;border-radius:11px;background:rgba(255,213,79,.06);border:1px solid rgba(255,213,79,.18)">戦国乙女ボーナスは<b style="color:#ffd54f">本機最大級の設定差（約4倍）</b>。設1で1/21206.7、設6で1/5502.7。引けた時点で強カワラッシュ濃厚です。記録すると示唆タブのカウンターにも自動加算されます。</div>';
@@ -698,6 +799,17 @@ function rRec(){var ct=document.getElementById("ct"),h='<div class="rec">';
    if(nx)h+='<div style="padding:8px 10px;border-radius:10px;background:rgba(255,171,64,.1);border:1px solid rgba(255,171,64,.3);font-size:11px;color:#ffab40;font-weight:700;margin:6px 0">'+nx+'</div>';
    h+='<div style="font-size:9px;color:rgba(255,255,255,.34);margin-top:-4px;line-height:1.5"><b style="color:#ffab40">周期はここで進みます</b>（巫女ポイントとは別系統）。紫炎はAT期待度61.4%(設定1)で、3周期目以降の突入率に設定差があるとされます。ただし他設定の数値が未判明のため推測には加算せず、突入率と勝率の実測を示唆タブに表示します。紫炎からハズレた場合は周期テーブルの手掛かりになります。</div>';}
   if(ev.cat==="atcz"){h+=detRow("種別",ATCZ_T,"type",curType);
+   /* 2026-11-21（ユーザー指示）: 本能寺の変に当選契機（レア役 OR G数）を足す。
+      ⚠️ 本能寺は**レア役と規定G数の両方**から当選する（1撃/altema/note で一致）。
+         規定G数側は「NEXT」表示のG数に到達したときの抽選で、何Gだったかに意味があるので
+         数値を残せるようにする。⚠️ 設定示唆ではないので示唆カウンタには繋がない。 */
+   if(curType==="honnoji"){
+    h+='<div class="dt"><div class="dt-t">当選契機</div><div class="dt-r">';
+    CZ_KIK.forEach(function(k){h+='<button type="button" class="dt-b'+(curCzk===k.id?' s':'')
+     +'" data-czk="'+k.id+'">'+k.l+(k.s?'<small style="display:block;font-size:8px;opacity:.55">'+k.s+'</small>':'')+'</button>'});
+    h+='</div></div>';
+    if(curCzk==="game")h+='<div class="dt"><div class="dt-t">到達したG数（NEXT表示）</div>'
+     +'<input type="number" inputmode="numeric" class="dt-f" id="iCzg" value="'+esc(curCzg)+'" placeholder="例: 20"></div>';}
    if(curType){h+=detRow("結果",atczRes(curType),"res",curRes);}
    h+='<div style="font-size:9px;color:rgba(255,255,255,.32);margin-top:-4px;line-height:1.5">いずれも設定1の数値のみ判明のため、推測には加算せず実測の勝率だけを表示します。<b style="color:#ffa726">出陣ボーナスは独立イベント</b>になりました（終了画面を記録するため）。</div>';}
   /* 2026-11-16: 出陣ボーナス（独立イベント）。上乗せの記録＋**終了画面のスタンプ**。 */
@@ -820,6 +932,10 @@ function canAdd(){if(!curEv)return false;var ev=EVMAP[curEv];
 /* 選ばれたスタンプを記録に残し、示唆タブのカウンタへ加算する。
    ⚠️ `bump` は addEntry の中の閉包（e.ck に積んで**削除時に戻す**ため）。必ず渡すこと。
    ⚠️ `k` が空のもの（なし／キャラ12種／見ていない）は**加算しない**。記録だけ残す。 */
+/* ⚠️ 2026-11-21: 終了画面は**戦国乙女ボーナスと出陣ボーナスの両方**に出る
+   （なな徹・DMMぱちタウンで確認）。だから種別で絞らない＝1本の実装を両方で共有する。
+   ⚠️ 選択肢は**1画面＝1つ**。スタンプはキャラ絵の上に乗るので「キャラ」と「スタンプ」を
+      別の選択肢にすると**同じ画面を2回数える**（初版の欠陥・ユーザー指摘）。 */
 function addStamp(e,bump){
  if(!curOpt)return;
  var o=BNS_STAMP.filter(function(x){return x.id===curOpt})[0];
@@ -828,13 +944,20 @@ function addStamp(e,bump){
  if(o.k)bump(o.k)}
 
 function stampRow(){
- var h='<div class="dt"><div class="dt-t">🏯 ボーナス終了画面（スタンプ＝設定域が確定）</div><div class="dt-r">';
+ var h='<div class="dt"><div class="dt-t">🏯 ボーナス終了画面（8通り・1画面につき1つだけ選ぶ）'
+  +'</div><div class="dt-r">';
  BNS_STAMP.forEach(function(o){h+='<button type="button" class="dt-b'+(curOpt===o.id?' s':'')
   +'" data-enopt="'+o.id+'">'+o.l+(o.s?'<small style="display:block;font-size:8px;opacity:.55">'+o.s+'</small>':'')+'</button>'});
  return h+'</div></div>'}
 
 function buildNote(e){var b=[],f;
  if(e.kik){f=AT_KIK.filter(function(x){return x.id===e.kik})[0];if(f)b.push(f.l)}
+ /* 2026-11-21: 上位AT。⚠️ 通常AT（id:""）は記録しないので、ここに出るのは上位だけ。 */
+ if(e.rank){f=AT_RANK.filter(function(x){return x.id===e.rank})[0];
+  b.push(f?("★"+f.l+(f.s?"("+f.s+")":"")):esc(e.rank))}
+ /* 2026-11-21: 本能寺の当選契機。G数契機のときだけ数値を添える。 */
+ if(e.czk){f=CZ_KIK.filter(function(x){return x.id===e.czk})[0];
+  b.push("契機:"+(f?f.l:esc(e.czk))+(e.czg?("("+esc(e.czg)+"G)"):""))}
  if(e.cyc)b.push(e.cyc+"周期目");
  if(e.mode){f=MIKO_MODE.filter(function(x){return x.id===e.mode})[0];if(f)b.push(f.l)}
  if(e.type){f=ATCZ_T.concat(RYO_T,END_VOICE).filter(function(x){return x.id===e.type})[0];
@@ -848,7 +971,10 @@ function buildNote(e){var b=[],f;
  if(e.scr){f=ATEND_SCR.filter(function(x){return x.id===e.scr})[0];if(f)b.push("終了画面:"+f.l+"("+f.s+")")}
  /* 2026-11-16: ボーナス終了画面のスタンプ（戦国乙女ボーナス／出陣ボーナス） */
  if(e.stamp){f=BNS_STAMP.filter(function(x){return x.id===e.stamp})[0];
-  b.push("終了画面:"+(f?(f.l+"スタンプ"+(f.s?"("+f.s+")":"")):esc(e.stamp)))}
+  /* ⚠️ 2026-11-21: 「スタンプ」の文字を**全部に付けてはいけない**（キャラを足したので
+     「ノブナガスタンプ」になる）。スタンプ5種だけが sp:1 を持つ。 */
+  b.push("終了画面:"+(f?(f.l+(f.sp?"スタンプ":"")+(f.s?"("+f.s+")":""))
+   :(OLD_STAMP[e.stamp]||esc(e.stamp))))}
  /* 2026-11-07: ストラップイベント。⚠️ 存在しない10人を削除したので、過去ログの id が
     STRAP に無いことがある。その場合は id をそのまま出す（無言で消さない）。 */
  if(e.strap){f=STRAP.filter(function(x){return x.id===e.strap})[0];
@@ -1048,6 +1174,7 @@ function rExp(){var ct=document.getElementById("ct"),E=estimate(),s=stats(),tG=t
 function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
  function bump(k){if(k in CC){CC[k]++;e.ck.push(k)}}
  if(ev.cat==="at"){e.kik=curKik;e.cyc=curCyc;e.g=String(parseInt(HAMARI)||0);HAMARI="";
+  if(curRank)e.rank=curRank;   /* 2026-11-21: 上位AT（真・強カワラッシュ）を記録 */
   e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
   ST.cyc=1;ST.cycG="";ST.miko="";}
  /* ⚠️ 2026-10-19 廃止: 巫女pt 0pt到達のイベント記録。カウンタ mikoT/mikoH に一本化した */
@@ -1057,6 +1184,8 @@ function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
        記録を消しても示唆タブのカウントが戻らない。 */
  if(ev.cat==="shutsujin"){if(curMai)e.mai=curMai;addStamp(e,bump);}
  if(ev.cat==="atcz"){e.type=curType;if(curRes)e.res=curRes;if(curMai)e.mai=curMai;
+  /* 2026-11-21: 本能寺の当選契機。⚠️ G数は契機が「G数」のときだけ残す（それ以外は嘘になる） */
+  if(curType==="honnoji"&&curCzk){e.czk=curCzk;if(curCzk==="game"&&curCzg)e.czg=curCzg;}
   if(curType==="honnoji"){bump("honT");if(curRes==="win")bump("honW");}
   if(curType==="kessen"){bump("kesT");if(curRes==="win")bump("kesW");}}
  if(ev.cat==="ryoran"){e.type=curType;e.res=curRes;
@@ -1079,7 +1208,7 @@ function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
   bump("s"+curOpt.charAt(0).toUpperCase()+curOpt.slice(1));}
  if(curNote)e.note=curNote;
  LOG.push(e);
- curEv=null;curG="";curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curNote="";curCat=null;curOpt=null;curCzout=null;curEdc=null;curLamp="";
+ curEv=null;curG="";curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curNote="";curCat=null;curOpt=null;curCzout=null;curEdc=null;curLamp="";curRank=null;curCzk=null;curCzg="";
  save();render()}
 
 function doRst(){if(!rstP){rstP=true;if(rstT)clearTimeout(rstT);rstT=setTimeout(function(){rstP=false;render()},3000);render();return}
@@ -1089,7 +1218,7 @@ document.getElementById("W").addEventListener("click",function(ev){var el=ev.tar
  for(var i=0;i<6&&el&&el!==this;i++){if(el.dataset){
   if(el.dataset.tab){TAB=el.dataset.tab;render();return}
   if(el.dataset.ev){curEv=(curEv===el.dataset.ev?null:el.dataset.ev);
-   curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curCat=null;curOpt=null;curCzout=null;curEdc=null;curLamp="";
+   curKik=null;curCyc=null;curRes=null;curMode=null;curType=null;curMai="";curCat=null;curOpt=null;curCzout=null;curEdc=null;curLamp="";curRank=null;curCzk=null;curCzg="";
    curG="";render();return}   /* ⚠️ 旧: AT選択時に HAMARI を curG へコピーしていた（二重管理） */
   if(el.dataset.kik!==undefined){curKik=(curKik===el.dataset.kik?null:el.dataset.kik);render();return}
   if(el.dataset.cyc!==undefined){curCyc=(curCyc===+el.dataset.cyc?null:+el.dataset.cyc);render();return}
@@ -1100,6 +1229,10 @@ document.getElementById("W").addEventListener("click",function(ev){var el=ev.tar
   if(el.dataset.encat!==undefined){curCat=(curCat===el.dataset.encat?null:el.dataset.encat);curOpt=null;render();return}
   if(el.dataset.enopt!==undefined){curOpt=(curOpt===el.dataset.enopt?null:el.dataset.enopt);render();return}
   if(el.dataset.edc!==undefined){curEdc=(curEdc===el.dataset.edc?null:el.dataset.edc);render();return}
+  if(el.dataset.rank!==undefined){curRank=(curRank===el.dataset.rank?null:el.dataset.rank);render();return}
+  /* ⚠️ 契機を「レア役」等に変えたら G数はクリアする（G数以外なのに数値が残ると嘘になる） */
+  if(el.dataset.czk!==undefined){curCzk=(curCzk===el.dataset.czk?null:el.dataset.czk);
+   if(curCzk!=="game")curCzg="";render();return}
   if(el.dataset.a==="add"){addEntry();return}
   if(el.dataset.del!==undefined){var rm=LOG.splice(parseInt(el.dataset.del),1)[0];
    if(rm&&rm.ck)rm.ck.forEach(function(k){if(CC[k]>0)CC[k]--});
@@ -1124,6 +1257,7 @@ document.getElementById("W").addEventListener("input",function(ev){
  /* iG（AT専用G入力）は 2026-10-19 に廃止。G数は上のハマりG欄（HAMARI）に一本化 */
  if(ev.target.id==="iN")curNote=ev.target.value;
  if(ev.target.id==="iMai")curMai=ev.target.value;
+ if(ev.target.id==="iCzg")curCzg=ev.target.value;
  if(ev.target.id==="iLamp")curLamp=ev.target.value;
  var mp={iCycG:"cycG",iMiko:"miko",mShop:"shop",mDai:"dai",mToshi:"toshi",mKaishu:"kaishu",mMemo:"memo"};
  if(mp[ev.target.id]){ST[mp[ev.target.id]]=ev.target.value;save();
