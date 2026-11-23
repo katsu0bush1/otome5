@@ -488,9 +488,15 @@ var CNTS=[
  /* 2026-11-21（ユーザー指示）: 周期モード「チャンス」の回数と、周期到達そのものの回数。
     ⚠️ チャンス＝50Gで周期到達する周期モード（なな徹）。**設定示唆ではなく周期モードの話**
        なので MASKS/QUASI には入れない。到達回数と並べて「チャンスに入った割合」を見るためのもの。 */
- {id:"cycle",t:"🔁 周期到達とチャンスモード（周期の話・設定示唆ではない）",items:[
-   {k:"cycT",l:"周期到達 回数",s:"規定G数に到達した回数（当否は問わない）"},
-   {k:"cycChance",l:"↑うち チャンスモードだった",s:"50Gで到達する周期モード。アイキャッチ「ノブナガ」が濃厚示唆"}]},
+ /* ⚠️⚠️ 2026-11-23 作り直し（敵対的レビューの指摘3件）: ここは手動カウンタ `cycT`/`cycChance`
+    だったが、**どこからも増えず、どこにも出なかった**（ユーザー指摘「カウントされてない」）。
+    自動加算にしたら、同じ数を「手で押した分」と「自動の分」の2か所で持つことになり、
+    11-21〜22に手で数えた分が上乗せされる形になった（この機種のツールは
+    「同じものを2か所から記録できる形」で既に3回事故っている）。
+    → **カウンタを置かず、履歴（LOG）の繚乱の刻を数える**（`stats()` の cycN / cycChanceN）。
+      チャンスだったかは**イベントに `e.cmode` として焼き付ける**ので、
+      あとから周期モードのボタンを押し直しても過去の分は変わらない。 */
+ {id:"cycle",t:"🔁 周期到達とチャンスモード（周期の話・設定示唆ではない）",items:[]},
  {id:"atend",t:"🖼️ AT終了画面（矛盾で確定）",items:[
    {k:"aGold",l:"乙女集合(金背景)",h:"設2以上濃厚",s:"出現時点で確定。天国濃厚も兼ねる"},
    {k:"aRed",l:"乙女集合(赤背景)＋天国否定",h:"設4以上濃厚",s:"次回が天国でなかったと確認できた時のみカウント"},
@@ -545,7 +551,11 @@ var SIGLBL={};CNTS.forEach(function(s){s.items.forEach(function(i){SIGLBL[i.k]=i
 var LOG=[],CC={},COL={},TAB="rec",HAMARI="",USE_Q=true;
 /* ⚠️ 2026-10-21: 既定値が "other"（廃止した3択時代の値）のままだと、**初回起動時に
    状態タブのどのボタンも選択表示にならない**（load() の移行は保存データにしか効かない）。 */
-var ST={cyc:1,cycG:"",miko:"",strap:"",tbl:"",tblId:"",mode:"",shop:"",dai:"",toshi:"",kaishu:"",memo:"",reset:"0"};
+/* ⚠️ 2026-11-23: 初期値を**関数1か所**にした。リセットでも使うので、ここに項目を足せば
+   リセットにも自動で効く（2か所に literal を書くと、足したとき片方だけ残って静かにずれる）。 */
+function stDefaults(){return {cyc:1,cycG:"",miko:"",strap:"",tbl:"",tblId:"",mode:"",
+ shop:"",dai:"",toshi:"",kaishu:"",memo:"",reset:"0"}}
+var ST=stDefaults();
 /* 2026-11-21 追加: curRank=入ったAT（上位か） / curCzk=本能寺の当選契機 / curCzg=その到達G数。
    ⚠️ **3か所すべてに足すこと**（宣言／記録後のクリア／イベント切替時のクリア）。
       1か所でも漏れると、前の記録の選択が次のイベントに**残って混ざる**。 */
@@ -577,8 +587,12 @@ function rate(n,d){return d?(n/d*100).toFixed(1):"0"}
 /* 通常時総G = 各AT当選時に入力したハマりG の合計 ＋ 現在のハマりG */
 function totalG(){var t=0;for(var i=0;i<LOG.length;i++)if(LOG[i].ev==="at")t+=parseInt(LOG[i].g)||0;
  return Math.max(0,t+Math.max(0,parseInt(HAMARI)||0))}
-function stats(){var s={at:0,mai:0,cycHit:[0,0,0,0,0,0],cycTry:[0,0,0,0,0,0]};
+function stats(){var s={at:0,mai:0,cycHit:[0,0,0,0,0,0],cycTry:[0,0,0,0,0,0],cycN:0,cycChanceN:0};
  for(var i=0;i<LOG.length;i++){var e=LOG[i];
+  /* 2026-11-23: 周期到達＝繚乱の刻。**履歴から数える**（カウンタを別に持たない）。
+     ⚠️ これは「繚乱の刻を記録した回数」であって、実機の周期到達回数そのものではない
+        （記録を省くと数えない／AT当選だけ記録しても数えない）。画面の説明にもそう書く。 */
+  if(e.ev==="ryoran"){s.cycN++;if(e.cmode==="chance")s.cycChanceN++}
   if(e.ev==="at"){s.at++;var c=e.cyc;
    if(c>=1&&c<=6){for(var j=0;j<c-1;j++)s.cycTry[j]++;
     if(e.kik==="cyc"||e.kik==="tenjou"||e.kik==="modoshi"){s.cycTry[c-1]++;s.cycHit[c-1]++;}}}
@@ -694,8 +708,12 @@ function estimate(){
 function render(){rHdr();rEst();rQS();rTabs();
  if(TAB==="rec")rRec();else if(TAB==="cnt")rCnt();else if(TAB==="tl")rTL();else if(TAB==="memo")rMemo();else if(TAB==="info")rInfo();else rExp()}
 
-function rHdr(){var h='<div class="hr"><div><div class="ht">戦国乙女5 業火を穿つ宿焔の双刃</div><div class="hs">設定判別＆実戦メモ ・ '+LOG.length+'件</div></div>';
- h+='<button type="button" class="hb'+(rstP?' p':'')+'" id="bR">'+(rstP?'もう一度でリセット':'リセット')+'</button></div>';
+function rHdr(){var h='<div class="hr"><div><div class="ht">戦国乙女5 業火を穿つ宿焔の双刃</div>';
+ /* ⚠️ 2026-11-23: リセットは**状態（周期・テーブル・周期モード・ストラップ・店/台/収支/メモ）まで
+    消す**ようにしたので、押す前に何が消えるか判るようにする（前は記録だけ消えて状態が残った）。 */
+ h+='<div class="hs">'+(rstP?'<b style="color:#ff5252">記録'+LOG.length+'件・カウンタ・周期・テーブル・収支・メモを全部消します</b>'
+   :'設定判別＆実戦メモ ・ '+LOG.length+'件')+'</div></div>';
+ h+='<button type="button" class="hb'+(rstP?' p':'')+'" id="bR">'+(rstP?'もう一度で全消去':'リセット')+'</button></div>';
  document.getElementById("hdr").innerHTML=h;
  var b=document.getElementById("bR");if(b)b.addEventListener("click",function(e){e.preventDefault();doRst()})}
 
@@ -870,7 +888,7 @@ function yamedoki(){
  return out}
 
 function stPanel(){var h='<div style="margin:0 0 10px;padding:10px 11px;border-radius:12px;background:rgba(255,171,64,.05);border:1px solid rgba(255,171,64,.16)">';
- h+='<div style="font-size:10px;color:#ffab40;font-weight:700;margin-bottom:6px">現在の状態（メモ用・推測には非加算）</div><div style="font-size:9px;color:rgba(255,255,255,.32);margin-bottom:6px;line-height:1.5">周期は「繚乱の刻」を記録すると自動で進みます。巫女ポイントは別系統です。ズレたらボタンで直接修正できます。</div>';
+ h+='<div style="font-size:10px;color:#ffab40;font-weight:700;margin-bottom:6px">現在の状態（メモ用・推測には非加算）</div><div style="font-size:9px;color:rgba(255,255,255,.32);margin-bottom:6px;line-height:1.5">周期は「繚乱の刻」を記録すると自動で進み、そのとき<b style="color:#ffab40">周期モードの推定は白紙に戻ります</b>（周期ごとに引き直されるため／記録には押していたモードが残ります）。巫女ポイントは別系統です。ズレたらボタンで直接修正できます。</div>';
  h+='<div style="font-size:10px;color:rgba(255,255,255,.4);margin-bottom:3px">周期</div><div class="grid g6" style="margin-bottom:7px">';
  for(var c=1;c<=6;c++)h+='<button type="button" class="ptbtn'+((parseInt(ST.cyc)||1)===c?' s':'')+'" data-stcyc="'+c+'">'+c+'</button>';
  h+='</div>';
@@ -958,7 +976,9 @@ function buildNote(e){var b=[],f;
  /* 2026-11-21: 本能寺の当選契機。G数契機のときだけ数値を添える。 */
  if(e.czk){f=CZ_KIK.filter(function(x){return x.id===e.czk})[0];
   b.push("契機:"+(f?f.l:esc(e.czk))+(e.czg?("("+esc(e.czg)+"G)"):""))}
- if(e.cyc)b.push(e.cyc+"周期目");
+ if(e.cyc)b.push(e.cyc+"周期目")
+ /* 2026-11-23: 繚乱の刻に焼き付けた周期モード。履歴でチャンス判定の根拠が見えるようにする */
+ if(e.cmode){f=MODES.filter(function(x){return x.id===e.cmode})[0];if(f)b.push("周期モード"+f.l)};
  if(e.mode){f=MIKO_MODE.filter(function(x){return x.id===e.mode})[0];if(f)b.push(f.l)}
  if(e.type){f=ATCZ_T.concat(RYO_T,END_VOICE).filter(function(x){return x.id===e.type})[0];
   /* ⚠️ 2026-11-16: 出陣ボーナスを ATCZ_T から外したので、過去ログの type が見つからなくなる。
@@ -1020,6 +1040,8 @@ function rCnt(){var ct=document.getElementById("ct"),h='<div class="cnt">',tG=to
     h+='</div><div class="cw"><button type="button" class="cm" data-cd="'+it.k+'">−</button><div class="vl">'+CC[it.k]+'</div><button type="button" class="cp" data-ci="'+it.k+'">＋</button></div></div>';}
    if(sec.id==="miko"&&CC.mikoT>0){h+='<div class="cc"><div class="cc-l">当選率: '+CC.mikoH+'/'+CC.mikoT+' ('+rate(CC.mikoH,CC.mikoT)+'%)</div>';
     h+='<div class="cc-s">設1:20.3 / 設2:21.4 / 設3:23.2 / 設4:24.7 / 設5:25.2 / 設6:25.7%。設4以上を見抜くなら約4回に1回のペースが目安。設4〜6の差は1%程度しかないため、上位設定の判別には向きません。</div></div>';}
+   if(sec.id==="cycle"){h+='<div class="cc"><div class="cc-l">繚乱の刻（＝記録した周期到達）: '+st.cycN+'回'+(st.cycN>0?'　うちチャンスモード '+st.cycChanceN+'回 ('+rate(st.cycChanceN,st.cycN)+'%)':'')+'</div>';
+    h+='<div class="cc-s">記録タブで<b>繚乱の刻</b>を記録すると、ここが自動で増えます（＋/−のボタンはありません。履歴から数えているので、記録を消せば戻ります）。チャンスかどうかは<b>記録した時点の周期モード</b>で判定して焼き付けるので、あとで周期モードを押し直しても過去の分は変わりません。周期到達すると周期モードの推定は白紙に戻ります（周期ごとに引き直されるため）。<br>⚠️ これは<b>繚乱の刻を記録した回数</b>です。記録を省いた周期、AT当選だけ記録した周期は数えません。⚠️ 周期モードは設定示唆ではないので推測には加算しません（50Gで到達する周期モードの話です）。<br>⚠️ 1周期の平均G数は<b>出せません</b>（繚乱の刻にG数を持たせておらず、通常総Gは「AT当選時に入れたハマりG」の合計なので、割っても周期の長さになりません）。</div></div>';}
    if(sec.id==="senbo"&&tG>0){h+='<div class="cc"><div class="cc-l">実測: '+CC.senboN+'回 / '+tG+'G'+(CC.senboN>0?' = 1/'+Math.round(tG/CC.senboN):'')+'</div>';
     h+='<div class="cc-s">設1:1/21206.7 設2:1/15648.9 設3:1/13143.5 設4:1/8143.4 設5:1/6427.6 設6:1/5502.7。1日回しても設1なら0回が普通なので、引けたこと自体が強い証拠になります（0回でも弱い低設定寄りの証拠として計算に入ります）。</div></div>';}
    if(sec.id==="ref"){
@@ -1033,7 +1055,7 @@ function rCnt(){var ct=document.getElementById("ct"),h='<div class="cnt">',tG=to
      h+='<br>高設定ほど早い周期で当選しやすいとされますが、設定1以外の数値が未判明のため推測には加算していません。</div></div>';}}
    h+='</div>';}
   h+='</div>';}
- h+='<div style="font-size:10px;color:rgba(255,255,255,.3);padding:8px 4px;line-height:1.6">※記録タブで<b>戦国乙女ボーナス・出陣ボーナス・AT中CZ・繚乱の刻・エンディング（ボイス）</b>を記録すると、ここへ自動で加算されます。<b style="color:#ffd54f">🏯 ボーナス終了画面（スタンプ）は 2026-11-16 から自動</b>になりました（戦国乙女ボーナス／出陣ボーナスの記録画面で選ぶだけ。手で数える必要はありません）。<b>巫女pt0pt到達・強カワチャンス</b>はイベント記録を廃止したので、このタブの ＋/− で直接数えてください（前者は2026-10-19、後者は2026-10-21 に一本化）。AT終了画面・獲得枚数表示・隠れ凪は手動カウントです。</div>';
+ h+='<div style="font-size:10px;color:rgba(255,255,255,.3);padding:8px 4px;line-height:1.6">※記録タブで<b>戦国乙女ボーナス・出陣ボーナス・AT中CZ・繚乱の刻・エンディング（ボイス）</b>を記録すると、ここへ自動で加算されます。<b style="color:#ffd54f">🔁 周期到達（繚乱の刻）は 2026-11-23 から履歴から数えます</b>（＋/−のボタンはありません。記録を消せば戻ります）。<b style="color:#ffd54f">🏯 ボーナス終了画面（スタンプ）は 2026-11-16 から自動</b>になりました（戦国乙女ボーナス／出陣ボーナスの記録画面で選ぶだけ。手で数える必要はありません）。<b>巫女pt0pt到達・強カワチャンス</b>はイベント記録を廃止したので、このタブの ＋/− で直接数えてください（前者は2026-10-19、後者は2026-10-21 に一本化）。AT終了画面・獲得枚数表示・隠れ凪は手動カウントです。</div>';
  h+='</div>';ct.innerHTML=h}
 
 /* ===== 解説 ===== */
@@ -1155,6 +1177,10 @@ function rExp(){var ct=document.getElementById("ct"),E=estimate(),s=stats(),tG=t
  if(CC.kesT)t+="決戦ノ刻: "+CC.kesW+"/"+CC.kesT+"\n";
  var cy=[];for(var c=0;c<6;c++)if(s.cycTry[c]>0)cy.push((c+1)+"周期 "+s.cycHit[c]+"/"+s.cycTry[c]);
  if(cy.length)t+="周期別当選: "+cy.join(" / ")+"\n";
+ /* 2026-11-23: 周期到達の回数を出力にも出す（数えても出力に出ないと使えない）。
+    ⚠️ 平均G/周期は出さない（繚乱の刻にG数が無く、通常総Gを割っても周期の長さにならない）。 */
+ if(s.cycN)t+="繚乱の刻(記録した周期到達): "+s.cycN+"回"
+  +"（うちチャンスモード "+s.cycChanceN+"回）\n";
  if(s.mai)t+="獲得枚数合計: "+s.mai+"枚\n";
  /* ⚠️ 2026-11-07: 周期内G数・巫女ptの入力欄を撤去したので、出力からも外す
     （欄が無いのに「周期内0G / 巫女pt-」と出ると、入れ忘れたのか欄が無いのか判らない）。 */
@@ -1190,7 +1216,24 @@ function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
   if(curType==="kessen"){bump("kesT");if(curRes==="win")bump("kesW");}}
  if(ev.cat==="ryoran"){e.type=curType;e.res=curRes;
   bump(curType==="shien"?"shiT":"enbT");if(curRes==="at")bump(curType==="shien"?"shiW":"enbW");
-  e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko};
+  /* ★ 2026-11-23（ユーザー指摘「周期到達 回数（チャンスモード＝50G）がカウントされてない」）:
+     周期到達＝繚乱の刻。回数は `stats()` が履歴から数えるので、ここでは
+     **そのときの周期モードをイベントに焼き付ける**だけにする。
+     ⚠️ 焼き付ける理由（敵対的レビュー①）: `ST.mode` は押し直すまで残るので、
+        あとから見ている値で数えると**過去の周期まで全部チャンス扱い**になる。 */
+  e.cmode=ST.mode||"";
+  e.prev={tbl:ST.tbl,cyc:ST.cyc,cycG:ST.cycG,miko:ST.miko,mode:ST.mode};
+  /* ⚠️ 周期モードは周期ごとに引き直される（なな徹）。到達したら**推定を白紙に戻す**。
+     残したままだと次の周期も同じモードとして数えてしまう。 */
+  ST.mode="";
+  /* ★ 2026-11-23（ユーザー指摘「周期が履歴に反映していない」）:
+     周期が進むのはここだけなのに、`e.cyc` を入れていたのは AT当選イベントだけだった
+     （記録画面で手で選んだ値）。繚乱の刻の履歴に周期が出ないので、
+     **あとから周期の進み方を見直せなかった**（現在の状態のボタンにしか出ない）。
+     → 進める**前**の周期を記録に残す。buildNote が「N周期目」として表示する。
+     ⚠️ stats() の周期別AT当選率は `if(e.ev==="at")` の中でしか e.cyc を見ないので、
+        ここで入れても集計は変わらない（確認済み）。 */
+  e.cyc=parseInt(ST.cyc)||1;
   if(curRes==="at")ST.cyc=1;else ST.cyc=Math.min(ceilCyc(),(parseInt(ST.cyc)||1)+1);
   ST.cycG="";}   // 周期が進むのは繚乱の刻
  if(ev.cat==="atend"){if(curMai)e.mai=curMai;
@@ -1212,7 +1255,12 @@ function addEntry(){if(!canAdd())return;var e={ev:curEv,ck:[]},ev=EVMAP[curEv];
  save();render()}
 
 function doRst(){if(!rstP){rstP=true;if(rstT)clearTimeout(rstT);rstT=setTimeout(function(){rstP=false;render()},3000);render();return}
- LOG=[];initC();HAMARI="";save();rstP=false;render()}
+ /* ⚠️ 2026-11-23（ユーザー指示「2は修正」／敵対的レビューの指摘）:
+    ここは LOG と カウンタ しか消しておらず、**ST を消していなかった**。
+    そのため周期・周期テーブル・周期モード・ストラップ・設定変更フラグ・店/台番号/収支/メモが
+    **翌日や別の台にそのまま残った**（前の台の周期5のまま新しい台を打ち始める＝静かに嘘になる）。
+    記録を全部消すボタンなので、状態も初期値へ戻す。消える内容はボタンの確認表示に出す。 */
+ LOG=[];initC();HAMARI="";ST=stDefaults();save();rstP=false;render()}
 
 document.getElementById("W").addEventListener("click",function(ev){var el=ev.target;
  for(var i=0;i<6&&el&&el!==this;i++){if(el.dataset){
@@ -1237,7 +1285,8 @@ document.getElementById("W").addEventListener("click",function(ev){var el=ev.tar
   if(el.dataset.del!==undefined){var rm=LOG.splice(parseInt(el.dataset.del),1)[0];
    if(rm&&rm.ck)rm.ck.forEach(function(k){if(CC[k]>0)CC[k]--});
    if(rm&&rm.prev){ST.tbl=rm.prev.tbl;ST.cyc=rm.prev.cyc;ST.cycG=rm.prev.cycG;if("miko" in rm.prev)ST.miko=rm.prev.miko;
-    if("strap" in rm.prev)ST.strap=rm.prev.strap;}   /* 2026-11-07: ストラップも巻き戻す */
+    if("strap" in rm.prev)ST.strap=rm.prev.strap;    /* 2026-11-07: ストラップも巻き戻す */
+    if("mode" in rm.prev)ST.mode=rm.prev.mode;}      /* 2026-11-23: 周期モードも巻き戻す */
    save();render();return}
   if(el.dataset.stcyc!==undefined){ST.cyc=+el.dataset.stcyc;save();render();return}
   if(el.dataset.clrstrap!==undefined){ST.strap="";save();render();return}
